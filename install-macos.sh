@@ -18,3 +18,5 @@ cp -rT hammerspoon ~/.hammerspoon
 cp -rT envrc ~/.envrc
 
 cp config/iterm2/com.googlecode.iterm2.plist ~/Library/Preferences/com.googlecode.iterm2.plist
+mkdir -p ~/.bluereset/
+cp config/bluereset/bluereset.conf ~/.bluereset/bluereset.conf

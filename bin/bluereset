@@ -1,12 +1,12 @@
 #/bin/bash
 
-DEVICE_NAMES="kb-home.apgnet mt2.apgnet"
+source ~/.bluereset/bluereset.conf
 
-DEVICE_ADDRESSES=""
 for name in ${DEVICE_NAMES} ; do
     DEVICE_ADDRESSES="${DEVICE_ADDRESSES} $(blueutil --paired --format json | jq -r ".[] | select(.name==\"${name}\") | .address")"
 done
 
+DEVICE_ADDRESSES=$(echo $DEVICE_ADDRESSES | xargs -n1 | sort -u | xargs)
 
 for address in ${DEVICE_ADDRESSES} ; do
     blueutil --unpair ${address}
