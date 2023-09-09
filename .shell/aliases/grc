@@ -1,0 +1,14 @@
+cmd_list=(
+  g++ head make ld ping6 tail traceroute6 curl df diff dig du env fdisk gcc id
+  ifconfig jobs kubectl last log lsof mount netstat nmap ping ps showmount stat
+  sysctl tcpdump traceroute ulimit uptime whois
+)
+
+has_grc=$(command -v exa 2>/dev/null)
+[[ -z $has_grc ]] && unset has_grc
+
+if [[ -n $has_grc ]]; then
+    for cmd in "${cmd_list[@]}"; do
+        alias "$cmd"="grci --colour=auto $cmd"
+    done
+fi

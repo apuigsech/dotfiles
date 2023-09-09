@@ -1,20 +1,95 @@
-#/bin/bash
+#!/bin/bash
 
-source ~/.bluereset/bluereset.conf
+# Description: Script to reset Bluetooth devices based on a configuration file.
+# Usage: ./script_name.sh [-c|--conf config_file_path]
 
-for name in ${DEVICE_NAMES} ; do
-    DEVICE_ADDRESSES="${DEVICE_ADDRESSES} $(blueutil --paired --format json | jq -r ".[] | select(.name==\"${name}\") | .address")"
-done
+# Default config file path
+CONFIG_FILE="${HOME}/.bluereset/bluereset.conf"
 
-DEVICE_ADDRESSES=$(echo $DEVICE_ADDRESSES | xargs -n1 | sort -u | xargs)
+# Check if required tools are installed
+check_dependencies() {
+    for cmd in blueutil jq; do
+        if ! command -v $cmd &> /dev/null; then
+            echo "Error: $cmd is not installed." >&2
+            exit 1
+        fi
+    done
+}
 
-for address in ${DEVICE_ADDRESSES} ; do
-    blueutil --unpair ${address}
-done
+# Parse command-line arguments
+parse_args() {
+    while (( "$#" )); do
+        case "$1" in
+            -c|--conf)
+                if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                    CONFIG_FILE="$2"
+                    shift 2
+                else
+                    echo "Error: Argument for $1 is missing" >&2
+                    exit 1
+                fi
+                ;;
+            *)
+                echo "Usage: $0 [-c|--conf config_file_path]"
+                exit 1
+                ;;
+        esac
+    done
+}
 
-sleep 4s
+# Load configuration
+load_config() {
+    local config_file=$1
+    if [[ -f $config_file ]]; then
+        source $config_file
+    else
+        echo "Configuration file not found: $config_file"
+        exit 1
+    fi
+}
 
-for address in ${DEVICE_ADDRESSES} ; do
-    blueutil --pair ${address}
-    blueutil --connect ${address}
-done
+# Fetch and store device addresses
+fetch_device_addresses() {
+    local device_names=("$@")
+    local paired_devices_json=$(blueutil --paired --format json)
+
+    for name in ${device_names[@]}; do
+        local device_address=$(echo "$paired_devices_json" | jq -r ".[] | select(.name==\"${name}\") | .address")
+        if [[ -n $device_address ]]; then
+            DEVICE_ADDRESSES_ARRAY+=("$device_address")
+        fi
+    done
+}
+
+# Unpair devices
+unpair_devices() {
+    local devices=("$@")
+    for address in ${devices[@]}; do
+        blueutil --unpair "$address"
+    done
+}
+
+# Pair and connect devices
+pair_devices() {
+    local devices=("$@")
+    for address in ${devices[@]}; do
+        blueutil --pair "$address" && blueutil --connect "$address"
+    done
+}
+
+# Main script execution
+main() {
+    check_dependencies
+    parse_args $@
+    load_config $CONFIG_FILE
+    fetch_device_addresses ${DEVICE_NAMES[@]}
+    unpair_devices ${DEVICE_ADDRESSES_ARRAY[@]}
+    sleep 4s
+    pair_devices ${DEVICE_ADDRESSES_ARRAY[@]}
+}
+
+# Declare an array to store device addresses
+declare -a DEVICE_ADDRESSES_ARRAY
+
+# Run the main function
+main $@

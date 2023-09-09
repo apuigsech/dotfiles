@@ -1,3 +1,22 @@
+DOTFILES_DIR="${HOME}/.dotfiles"
+
+BASE_DIR=$DOTFILES_DIR
+LIB_DIR="${BASE_DIR}/lib"
+
+for file in ${LIB_DIR}/*.sh; do
+    if [ -f $file ]; then
+        source $file
+    fi
+done
+
+ZSH_THEME="powerlevel10k/powerlevel10k"
+source_dir "${BASE_DIR}/zsh" zsh
+
+source_dir "${BASE_DIR}/aliases"
+source_dir "${BASE_DIR}/env"
+
+return
+
 [[ ! -f ~/.zsh/basics.zsh ]] || source ~/.zsh/basics.zsh
 
 
@@ -50,61 +69,5 @@ fi
 export GPG_TTY=$(tty)
 export PINENTRY_USER_DATA="USE_CURSES=0"
 
-# User configuration
-
-# export MANPATH="/usr/local/man:$MANPATH"
-
-# You may need to manually set your language environment
-export LANG=en_US.UTF-8
-export LANGUAGE=en_US
-export LC_CTYPE="en_US.UTF-8"
-export LC_NUMERIC="en_US.UTF-8"
-export LC_TIME="en_GB.UTF-8"
-export LC_COLLATE="en_US.UTF-8"
-export LC_MONETARY="en_US.UTF-8"
-export LC_MESSAGES="en_US.UTF-8"
-export LC_PAPER="en_US.UTF-8"
-export LC_NAME="en_US.UTF-8"
-export LC_ADDRESS="en_US.UTF-8"
-export LC_TELEPHONE="en_US.UTF-8"
-export LC_MEASUREMENT="en_US.UTF-8"
-export LC_IDENTIFICATION="en_US.UTF-8"
-export LC_ALL=en_US.UTF-8
-
-# Aliases
-NC='\033[0m'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-ORANGE='\033[0;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-WHITE='\033[0;37m'
-LRED='\033[1;31m'
-LGREEN='\033[1;32m'
-LORANGE='\033[1;33m'
-LBLUE='\033[1;34m'
-LPURPLE='\033[1;35m'
-LCYAN='\033[1;36m'
-LWHITE='\033[1;37m'
-
-log.debug() {
-  echo -e "${CYAN}*${NC}" "$*" "${NC}"
-}
-log.info() {
-  echo -e "${GREEN}*${NC}" "$*" "${NC}"
-}
-log.warn() {
-  echo -e "${ORANGE}*${NC}" "$*" "${NC}"
-}
-log.error() {
-  echo -e "${RED}*${NC}" "$*" "${NC}"
-}
-
-# Aliases from Bash
-[[ ! -f ~/.bash_aliases ]] || source ~/.bash_aliases
-
-# Using my own dircolors spec
-test -r ~/.dircolors && eval `dircolors -b ~/.dircolors`
 
 PATH=${HOME}/bin:${PATH}
