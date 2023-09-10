@@ -1,0 +1,7 @@
+- defaults:
+    link:
+      relink: true
+
+- link:
+    ~/.zsh: .zsh
+    ~/.zshrc: .zshrc

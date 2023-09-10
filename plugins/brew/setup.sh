@@ -1,0 +1,3 @@
+brew_install
+brew_install_pkgs packages.lst
+brew_install_pkgs packages-cask.lst cask

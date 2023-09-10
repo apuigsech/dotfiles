@@ -1,0 +1,9 @@
+- defaults:
+    link:
+      relink: true
+
+- link:
+    ~/.gdbinit: .gdbinit
+    ~/.gitconfig: .gitconfig
+    ~/.gitignore: .gitignore
+    ~/.wgetrc: .wgetrc

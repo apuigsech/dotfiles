@@ -1,0 +1,19 @@
+#!/bin/bash
+
+BASE_DIR=$(dirname $(realpath $0))
+pushd ${BASE_DIR} > /dev/null
+
+. lib/utils
+. lib/dotbot
+. lib/brew
+
+DOTFILES_PLUGINS=(brew shell zsh direnv hammerspoon configs bluereset)
+
+for plugin in ${DOTFILES_PLUGINS[@]}; do
+    if [[ -d plugins/${plugin} ]]; then
+        pushd plugins/${plugin} > /dev/null
+        [[ -f setup.sh ]] && . setup.sh
+        [[ -f setup.dotbot ]] && dotbot -c setup.dotbot
+        popd > /dev/null
+    fi
+done

@@ -1,0 +1,12 @@
+- defaults:
+    link:
+      relink: true
+
+- create:
+    - ~/.shell
+
+- link:
+    ~/.aliases: .aliases
+    ~/.env: .env
+    ~/.paths: .paths
+    ~/.shellrc: .shellrc

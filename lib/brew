@@ -1,9 +1,8 @@
+[[ $BREW_INCLUDED ]] && return
+BREW_INCLUDED=true
+
 function brew_is_installed() {
-    if command -v brew >/dev/null 2>&1; then
-        return 0
-    else
-        return 1
-    fi
+    has_cmd brew
 }
 
 function brew_install() {
@@ -24,13 +23,27 @@ function brew_install() {
     fi
 }
 
-function brew_install_packages() {
+function brew_install_pkg() {
+    local pkg=$1
+    local type=$2
+
+    if ! brew_is_installed; then
+        brew_install
+    fi
+
+    if [[ $type == "cask" ]]; then
+        xargs brew install $pkg
+    else
+        xargs brew install --cask < $pkg
+    fi
+}
+
+function brew_install_pkgs() {
     local package_file=$1
     local type=$2
 
     if ! brew_is_installed; then
-        echo "Homebrew is not installed. Please install it first."
-        return 1
+        brew_install
     fi
 
     if [[ ! -f $package_file ]]; then

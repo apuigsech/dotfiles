@@ -1,0 +1,9 @@
+- defaults:
+    link:
+      relink: true
+
+- create:
+    - ~/.shell
+
+- link:
+    ~/.shell/direnv: enable

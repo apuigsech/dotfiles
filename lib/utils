@@ -1,0 +1,48 @@
+[[ $UTILS_INCLUDED ]] && return
+UTILS_INCLUDED=true
+
+function has_cmd() {
+    local cmd=$1
+
+    if command -v ${cmd} >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi 
+}
+
+function source_dir() {
+    local dir=$1
+    local ext=$2
+
+    if [[ ! -d $dir ]]; then
+        echo "Error: Directory '${dir}' does not exist."
+        return 1
+    fi
+
+    local files=()
+    if [[ -n $ext ]]; then
+        files=("$dir"/*."$ext")
+    else
+        files=("$dir"/*)
+    fi
+
+    for file in "${files[@]}"; do
+        if [[ -f $file ]]; then
+            echo "Loading... $file"
+            source "$file"
+        fi
+    done
+}
+
+function prepend_path() {
+    local newpath=$1
+
+    PATH=${newpath}:${PATH}
+}
+
+function append_path() {
+    local newpath=$1
+
+    PATH=${PATH}:${newpath}
+}

@@ -1,7 +1,6 @@
 local log = hs.logger.new("log", "debug")
 
 local wm = require('window-management')
-local al = require('auto-layouts')
 
 KEYMODE_0 = {
   ["left"] = wm.FullLeft,

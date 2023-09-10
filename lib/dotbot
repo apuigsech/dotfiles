@@ -1,0 +1,13 @@
+[[ $DOTBOT_INCLUDED ]] && return
+DOTBOT_INCLUDED=true
+
+DOTBOT_BIN="${BASE_DIR}/dotbot/bin/dotbot"
+
+function dotbot() {
+    if [[ ! -x "$DOTBOT_BIN" ]]; then
+        echo "Error: $DOTBOT_BIN does not exist or is not executable."
+        return 1
+    fi
+
+    "${DOTBOT_BIN}" -Q "$@"
+}

@@ -1,0 +1,4 @@
+source_dir ~/.aliases
+source_dir ~/.env
+source_dir ~/.paths
+source_dir ~/.shell

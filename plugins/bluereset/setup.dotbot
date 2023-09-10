@@ -1,0 +1,9 @@
+- defaults:
+    link:
+      relink: true
+
+- link:
+    ~/.bluereset: .bluereset
+    ~/bin/bluereset: 
+        mode: 750
+        path: bin/bluereset
