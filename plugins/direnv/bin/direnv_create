@@ -1,0 +1,47 @@
+#!/bin/bash
+
+deploy_envrc() {
+    ln -s ${DOTFILES_DIR}/plugins/direnv/.envrc .envrc
+}
+
+# Function to create a Python virtual environment
+create_python_env() {
+    python3 -m venv .venv
+    deploy_envrc
+    echo "Python virtual environment created"
+}
+
+# Function to create a Node virtual environment
+create_node_env() {
+    nodeenv .venv --node=20.5.1 --force
+    deploy_envrc
+    echo "Node virtual environment created"
+}
+
+# Main function
+main() {
+    # Check if at least one argument is provided
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: direnv_create <type>"
+        echo "Supported types: python, node"
+        exit 1
+    fi
+
+    # Determine the type of virtual environment to create
+    case $2 in
+        python|py)
+            create_python_env
+            ;;
+        node)
+            create_node_env
+            ;;
+        *)
+            echo "Unsupported environment type: $2"
+            echo "Supported types: python, node"
+            exit 1
+            ;;
+    esac
+}
+
+# Call the main function with all script arguments
+main "$@"

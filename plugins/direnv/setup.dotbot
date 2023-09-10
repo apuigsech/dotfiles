@@ -7,3 +7,6 @@
 
 - link:
     ~/.shell/direnv: enable
+    ~/bin/direnv_create: 
+        mode: 750
+        path: bin/direnv_create
