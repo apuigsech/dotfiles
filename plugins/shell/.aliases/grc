@@ -9,6 +9,6 @@ has_grc=$(command -v exa 2>/dev/null)
 
 if [[ -n $has_grc ]]; then
     for cmd in "${cmd_list[@]}"; do
-        alias "$cmd"="grci --colour=auto $cmd"
+        alias "$cmd"="grc --colour=auto $cmd"
     done
 fi

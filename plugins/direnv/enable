@@ -3,7 +3,7 @@ eval "$(direnv hook ${SHELL})"
 function direnv() {
     local action=$1
     if [[ $action == "create" ]]; then
-        direnv_create "${@}"
+        direnv_create "${@:2}"
     else
        command direnv "${@}"
     fi

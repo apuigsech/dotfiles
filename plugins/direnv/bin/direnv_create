@@ -1,5 +1,8 @@
 #!/bin/bash
 
+NODE_DEFAULT_VERSION=$(nodeenv --list 2>&1 | tail -n 1 | awk '{print $NF}')
+
+
 deploy_envrc() {
     ln -s ${DOTFILES_DIR}/plugins/direnv/.envrc .envrc
 }
@@ -13,7 +16,8 @@ create_python_env() {
 
 # Function to create a Node virtual environment
 create_node_env() {
-    nodeenv .venv --node=20.5.1 --force
+    local version=${1:-$NODE_DEFAULT_VERSION}
+    nodeenv .venv --node=${version} --force
     deploy_envrc
     echo "Node virtual environment created"
 }
@@ -28,15 +32,15 @@ main() {
     fi
 
     # Determine the type of virtual environment to create
-    case $2 in
+    case $1 in
         python|py)
-            create_python_env
+            create_python_env "${@:2}"
             ;;
         node)
-            create_node_env
+            create_node_env "${@:2}"
             ;;
         *)
-            echo "Unsupported environment type: $2"
+            echo "Unsupported environment type: $1"
             echo "Supported types: python, node"
             exit 1
             ;;
