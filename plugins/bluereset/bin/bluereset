@@ -83,8 +83,8 @@ main() {
     parse_args $@
     load_config $CONFIG_FILE
     fetch_device_addresses ${DEVICE_NAMES[@]}
-    unpair_devices ${DEVICE_ADDRESSES_ARRAY[@]}
-    sleep 4s
+    unpair_devices ${DEVICE_ADDRESSES[@]}
+    sleep 4
     pair_devices ${DEVICE_ADDRESSES_ARRAY[@]}
 }
 
