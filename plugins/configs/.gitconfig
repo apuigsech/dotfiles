@@ -75,11 +75,6 @@
 	# Show most recently changed branches first.
 	sort = -committerdate
 
-[user]
-	name = Albert Puigsech
-	email = albert@puigsech.com
-	signingkey = 5505F9A9C62EB7E13B973975704255ABCB4876D2
-
 [init]
 	defaultBranch = master
 
@@ -105,3 +100,9 @@
 
 [gpg]
 	program = gpg
+
+[includeIf "gitdir:~/Develop/"]
+  path = ~/.gitconfig.d/personal
+
+[includeIf "gitdir:~/Develop/adevinta/"]
+  path = ~/.gitconfig.d/adevinta
