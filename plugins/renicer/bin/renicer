@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# Description: Daemon that changes process priorities that matches a name
+# Usage: ./renicer [-c|--conf config_file_path]
+
+# Default config file path
+CONFIG_FILE="${HOME}/.renicer"
+DAEMON_MODE=false
+
+# Check if required tools are installed
+check_dependencies() {
+    for cmd in renice pgrep; do
+        if ! command -v $cmd &> /dev/null; then
+            echo "Error: $cmd is not installed." >&2
+            exit 1
+        fi
+    done
+}
+
+# Parse command-line arguments
+parse_args() {
+    while (( "$#" )); do
+        case "$1" in
+            -c|--conf)
+                if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+                    CONFIG_FILE="$2"
+                    shift 2
+                else
+                    echo "Error: Argument for $1 is missing" >&2
+                    exit 1
+                fi
+                ;;
+            -d)
+                DAEMON_MODE=true
+                shift
+                ;;
+            *)
+                echo "Usage: $0 [-c|--conf config_file_path] [-d]"
+                exit 1
+                ;;
+        esac
+    done
+}
+
+
+# Load configuration and renice processes
+renice_processes() {
+    while IFS=' ' read -r process_name priority || [[ -n "$process_name" ]]; do
+        # Skip empty lines and lines starting with #
+        [[ -z "$process_name" || "$process_name" == \#* ]] && continue
+
+        for pid in $(pgrep -f "$process_name"); do
+            echo "Changing priority of $process_name (PID: $pid) to $priority"
+            renice -n "$priority" -p "$pid" &> /dev/null
+        done
+    done < <(sed '$a\' "$CONFIG_FILE")
+}
+
+# Main script execution
+main() {
+    check_dependencies
+    parse_args "$@"
+
+    if [[ -f "$CONFIG_FILE" ]]; then
+        if [[ "$DAEMON_MODE" = true ]]; then
+            while true; do
+                renice_processes
+                sleep 5
+            done
+        else
+            renice_processes
+        fi
+    else
+        echo "Configuration file not found: $CONFIG_FILE"
+        exit 1
+    fi
+}
+
+# Run the main function
+main "$@"

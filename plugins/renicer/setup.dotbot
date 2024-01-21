@@ -1,0 +1,9 @@
+- defaults:
+    link:
+      relink: true
+
+- link:
+    ~/.renicer: .renicer
+    ~/bin/renicer: 
+        mode: 750
+        path: bin/renice

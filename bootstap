@@ -7,7 +7,7 @@ pushd ${BASE_DIR} > /dev/null
 . lib/dotbot
 . lib/brew
 
-DOTFILES_PLUGINS=(brew shell zsh direnv hammerspoon configs bluereset)
+DOTFILES_PLUGINS=(brew shell zsh direnv hammerspoon configs bluereset renicer)
 
 for plugin in ${DOTFILES_PLUGINS[@]}; do
     if [[ -d plugins/${plugin} ]]; then
