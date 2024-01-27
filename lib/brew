@@ -32,9 +32,9 @@ function brew_install_pkg() {
     fi
 
     if [[ $type == "cask" ]]; then
-        xargs brew install $pkg
+        xargs brew install --cask $pkg
     else
-        xargs brew install --cask < $pkg
+        xargs brew install $pkg
     fi
 }
 
@@ -52,8 +52,8 @@ function brew_install_pkgs() {
     fi
 
     if [[ $type == "cask" ]]; then
-        xargs brew install < $package_file
-    else
         xargs brew install --cask < $package_file
+    else
+        xargs brew install < $package_file
     fi
 }
