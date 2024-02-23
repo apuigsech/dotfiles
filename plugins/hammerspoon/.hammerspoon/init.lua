@@ -2,32 +2,34 @@ local log = hs.logger.new("log", "debug")
 
 local wm = require('window-management')
 
-KEYMODE_0 = {
-  ["left"] = wm.FullLeft,
-  ["right"] = wm.FullRight,
-  ["down"] = wm.FullMid,
-  ["up"] = wm.FullScreen,
-  ["f"] = wm.FullScreen
+local KEYMODES = {
+  [0] = {
+    left = wm.FullLeft,
+    right = wm.FullRight,
+    down = wm.FullMid,
+    up = wm.FullScreen,
+    f = wm.FullScreen
+  },
+  [1] = {
+    left = wm.SwitchLeft,
+    right = wm.SwitchRight,
+    down = wm.FullMid,
+    up = wm.FullSide,
+    f = wm.FullScreen
+  }
 }
 
-KEYMODE_1 = {
-  ["left"] = wm.SwitchLeft,
-  ["right"] = wm.SwitchRight,
-  ["down"] = wm.FullMid,
-  ["up"] = wm.FullSide,
-  ["f"] = wm.FullScreen
+local wm_modes = {
+  ["1440x900"] = KEYMODES[0],
+  ["1512x982"] = KEYMODES[0],
+  ["2560x1440"] = KEYMODES[0],
+  ["5120x1440"] = KEYMODES[1]
 }
-
-local wm_modes = {}
-wm_modes["1440x900"] = KEYMODE_0
-wm_modes["1512x982"] = KEYMODE_0
-wm_modes["2560x1440"] = KEYMODE_0
-wm_modes["5120x1440"] = KEYMODE_1
 
 function K(key)
-  s = hs.screen.mainScreen()
-  m = s:currentMode()
-  mode = m["w"] .. "x" .. m["h"]
+  local s = hs.screen.mainScreen()
+  local m = s:currentMode()
+  local mode = m.w .. "x" .. m.h
   log.d("MODE", mode, key)
   wm_modes[mode][key]()
 end
