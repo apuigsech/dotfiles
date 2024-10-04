@@ -3,7 +3,7 @@ coreutils
 direnv
 docker
 docker-compose
-exa
+eza
 fzf
 git-delta
 gnupg

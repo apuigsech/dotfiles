@@ -1,6 +1,0 @@
-has_exa=$(command -v exa 2>/dev/null)
-[[ -z $has_exa ]] && unset has_exa
-
-if [[ -n $has_exa ]]; then
-    alias ls='exa --time-style=long-iso --group-directories-first --color=auto --color-scale --git --icons --group'
-fi

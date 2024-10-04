@@ -1,0 +1,6 @@
+has_eza=$(command -v eza 2>/dev/null)
+[[ -z $has_eza ]] && unset has_eza
+
+if [[ -n $has_eza ]]; then
+    alias ls='eza --time-style=long-iso --group-directories-first --color=auto --color-scale --git --icons --group'
+fi
