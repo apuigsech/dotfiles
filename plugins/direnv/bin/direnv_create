@@ -1,38 +1,128 @@
 #!/bin/bash
 
-NODE_DEFAULT_VERSION=$(nodeenv --list 2>&1 | tail -n 1 | awk '{print $NF}')
+set -euo pipefail
 
+# Constants
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly SUPPORTED_TYPES="python, node"
 
+# Get default Node version, with error handling
+get_node_default_version() {
+    if command -v nodeenv >/dev/null 2>&1; then
+        nodeenv --list 2>/dev/null | tail -n 1 | awk '{print $NF}' || echo "latest"
+    else
+        echo "latest"
+    fi
+}
+
+readonly NODE_DEFAULT_VERSION=$(get_node_default_version)
+
+# Function to deploy .envrc file
 deploy_envrc() {
-    ln -s ${DOTFILES_DIR}/plugins/direnv/.envrc .envrc
+    local envrc_source="${DOTFILES_DIR}/plugins/direnv/.envrc"
+    local envrc_target=".envrc"
+
+    if [[ -z "${DOTFILES_DIR:-}" ]]; then
+        echo "Error: DOTFILES_DIR environment variable is not set" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$envrc_source" ]]; then
+        echo "Error: Source .envrc file not found at $envrc_source" >&2
+        exit 1
+    fi
+
+    if [[ -e "$envrc_target" ]]; then
+        echo "Warning: .envrc already exists, removing it first" >&2
+        rm -f "$envrc_target"
+    fi
+
+    ln -s "$envrc_source" "$envrc_target"
+    echo ".envrc deployed successfully"
 }
 
 # Function to create a Python virtual environment
 create_python_env() {
+    echo "Creating Python virtual environment..."
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "Error: python3 is not installed or not in PATH" >&2
+        exit 1
+    fi
+
+    if [[ -d ".venv" ]]; then
+        echo "Warning: .venv directory already exists, removing it first" >&2
+        rm -rf ".venv"
+    fi
+
     python3 -m venv .venv
     deploy_envrc
-    echo "Python virtual environment created"
+    echo "Python virtual environment created successfully"
 }
 
 # Function to create a Node virtual environment
 create_node_env() {
-    local version=${1:-$NODE_DEFAULT_VERSION}
-    nodeenv .venv --node=${version} --force
+    local version="${1:-$NODE_DEFAULT_VERSION}"
+
+    echo "Creating Node virtual environment with version: $version"
+
+    if ! command -v nodeenv >/dev/null 2>&1; then
+        echo "Error: nodeenv is not installed or not in PATH" >&2
+        echo "Install it with: pip install nodeenv" >&2
+        exit 1
+    fi
+
+    if [[ -d ".venv" ]]; then
+        echo "Warning: .venv directory already exists, removing it first" >&2
+        rm -rf ".venv"
+    fi
+
+    nodeenv .venv --node="$version" --force
     deploy_envrc
-    echo "Node virtual environment created"
+    echo "Node virtual environment created successfully"
+}
+
+# Function to display usage information
+show_usage() {
+    cat << EOF
+Usage: $SCRIPT_NAME <type> [options]
+
+Create a virtual environment with direnv integration.
+
+Types:
+  python, py    Create a Python virtual environment
+  node          Create a Node.js virtual environment [version]
+
+Options for node:
+  version       Node.js version to install (default: $NODE_DEFAULT_VERSION)
+
+Examples:
+  $SCRIPT_NAME python
+  $SCRIPT_NAME node
+  $SCRIPT_NAME node 18.17.0
+
+Supported types: $SUPPORTED_TYPES
+EOF
 }
 
 # Main function
 main() {
     # Check if at least one argument is provided
     if [[ $# -lt 1 ]]; then
-        echo "Usage: direnv_create <type>"
-        echo "Supported types: python, node"
+        echo "Error: Missing required argument" >&2
+        echo "" >&2
+        show_usage >&2
         exit 1
     fi
 
+    # Handle help flag
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        show_usage
+        exit 0
+    fi
+
     # Determine the type of virtual environment to create
-    case $1 in
+    case "$1" in
         python|py)
             create_python_env "${@:2}"
             ;;
@@ -40,8 +130,10 @@ main() {
             create_node_env "${@:2}"
             ;;
         *)
-            echo "Unsupported environment type: $1"
-            echo "Supported types: python, node"
+            echo "Error: Unsupported environment type: $1" >&2
+            echo "Supported types: $SUPPORTED_TYPES" >&2
+            echo "" >&2
+            show_usage >&2
             exit 1
             ;;
     esac
