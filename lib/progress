@@ -18,7 +18,7 @@ SPINNER_PID=""
 function start_spinner() {
     local message="$1"
     stop_spinner  # Stop any existing spinner
-    
+
     {
         local i=0
         while true; do
@@ -28,7 +28,7 @@ function start_spinner() {
             ((i++))
         done
     } &
-    
+
     SPINNER_PID=$!
     disown
 }
@@ -46,21 +46,21 @@ function stop_spinner() {
 function run_with_spinner() {
     local desc="$1"
     shift
-    
+
     start_spinner "$desc..."
-    
+
     local output
     local exit_code
-    
+
     # Capture output and exit code
     if output=$("$@" 2>&1); then
         exit_code=0
     else
         exit_code=$?
     fi
-    
+
     stop_spinner
-    
+
     if [[ $exit_code -eq 0 ]]; then
         printf "\r✓ %s\n" "$desc"
         ((PROGRESS_SUCCESS++))
@@ -72,7 +72,7 @@ function run_with_spinner() {
         log_error "$desc: FAILED (exit code: $exit_code)"
         [[ -n "$output" ]] && log_error "Output: $output"
     fi
-    
+
     ((PROGRESS_CURRENT++))
     return $exit_code
 }
@@ -81,18 +81,18 @@ function run_with_spinner() {
 function run_with_status() {
     local desc="$1"
     shift
-    
+
     printf "%-50s" "$desc..."
-    
+
     local output
     local exit_code
-    
+
     if output=$("$@" 2>&1); then
         exit_code=0
     else
         exit_code=$?
     fi
-    
+
     if [[ $exit_code -eq 0 ]]; then
         printf " ✓\n"
         ((PROGRESS_SUCCESS++))
@@ -104,7 +104,7 @@ function run_with_status() {
         log_error "$desc: FAILED (exit code: $exit_code)"
         [[ -n "$output" ]] && log_error "Output: $output"
     fi
-    
+
     ((PROGRESS_CURRENT++))
     return $exit_code
 }
@@ -116,7 +116,7 @@ function show_progress() {
     local width=50
     local percentage=$((current * 100 / total))
     local filled=$((current * width / total))
-    
+
     printf "\r["
     for ((i = 0; i < filled; i++)); do
         printf "="
@@ -154,17 +154,17 @@ function finish_progress() {
 # Print progress summary
 function print_progress_summary() {
     local total=$((PROGRESS_SUCCESS + PROGRESS_FAILED))
-    
+
     if [[ $total -eq 0 ]]; then
         return
     fi
-    
+
     echo
     echo "=== Progress Summary ==="
     echo "Total tasks: $total"
     echo "Successful: $PROGRESS_SUCCESS"
     echo "Failed: $PROGRESS_FAILED"
-    
+
     if [[ $PROGRESS_FAILED -gt 0 ]]; then
         echo "Success rate: $((PROGRESS_SUCCESS * 100 / total))%"
         log_warn "Some tasks failed. Check the log for details: $(get_log_file)"
@@ -184,7 +184,7 @@ function supports_fancy_output() {
 function run_task() {
     local desc="$1"
     shift
-    
+
     if supports_fancy_output; then
         run_with_spinner "$desc" "$@"
     else
@@ -197,5 +197,4 @@ function cleanup_progress() {
     stop_spinner
 }
 
-# Set up cleanup trap
-trap cleanup_progress EXIT 
+# Note: EXIT trap is handled by lib/errors to avoid conflicts

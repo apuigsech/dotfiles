@@ -1,0 +1,303 @@
+[[ $UNINSTALL_INCLUDED ]] && return
+UNINSTALL_INCLUDED=true
+
+# Source dependencies
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+source "${BASE_DIR}/lib/utils" 2>/dev/null || true
+
+# Parse a dotbot YAML configuration file and extract actionable items
+function parse_dotbot_config() {
+    local config_file="$1"
+    local action="$2"  # 'links', 'creates', 'shells'
+    
+    if [[ ! -f "$config_file" ]]; then
+        log_error "Dotbot config file not found: $config_file"
+        return 1
+    fi
+    
+    case "$action" in
+        "links")
+            # Extract link operations from YAML
+            # This is a simplified parser for our specific YAML structure
+            grep -A 1000 "^- link:" "$config_file" | \
+            grep -v "^- " | \
+            grep -v "^\s*$" | \
+            grep -v "^#" | \
+            grep -v "relink:" | \
+            grep -v "create:" | \
+            grep -v "mode:" | \
+            grep -v "path:" | \
+            sed 's/^[[:space:]]*//' | \
+            grep ":" | \
+            grep -v "^$" || true
+            ;;
+        "creates")
+            # Extract create operations
+            sed -n '/^- create:/,/^- [^[:space:]]/p' "$config_file" | \
+            grep '^[[:space:]]\+- ' | \
+            sed 's/^[[:space:]]*- //g' || true
+            ;;
+        "shells")
+            # Extract shell commands (for informational purposes)
+            grep -A 50 "^- shell:" "$config_file" | \
+            grep -v "^- shell:" | \
+            grep "command:" | \
+            sed 's/.*command:\s*//g' || true
+            ;;
+        *)
+            log_error "Unknown action: $action"
+            return 1
+            ;;
+    esac
+}
+
+# Remove symlinks created by dotbot
+function remove_symlinks() {
+    local config_file="$1"
+    local plugin_dir="$2"
+    local dry_run="${3:-false}"
+    
+    log_info "Removing symlinks for plugin configuration: $config_file"
+    
+    local links
+    links=$(parse_dotbot_config "$config_file" "links")
+    
+    if [[ -z "$links" ]]; then
+        log_info "No links found in configuration"
+        return 0
+    fi
+    
+    local removed_count=0
+    local failed_count=0
+    
+    while IFS= read -r link_line; do
+        [[ -z "$link_line" ]] && continue
+        
+        # Parse the link line (format: "target: source" or "target:")
+        local target source
+        if [[ "$link_line" =~ ^([^:]+):[[:space:]]*(.*)$ ]]; then
+            target="${BASH_REMATCH[1]}"
+            source="${BASH_REMATCH[2]}"
+            
+            # Expand ~ to home directory
+            target="${target/#\~/$HOME}"
+            
+            # If source is empty, look for next lines that might contain path info
+            if [[ -z "$source" ]]; then
+                # This is a complex link definition, we'll need to parse more carefully
+                # For now, we'll skip these and warn the user
+                log_warn "Complex link definition found for $target - manual removal may be required"
+                continue
+            fi
+            
+            log_debug "Processing link: $target -> $source"
+            
+            if [[ -L "$target" ]]; then
+                # Verify this is actually a symlink to our plugin
+                local link_target
+                link_target=$(readlink "$target")
+                
+                # Build possible expected targets (relative and absolute paths)
+                local expected_relative="$source"
+                local expected_absolute="$plugin_dir/$source"
+                local current_dir
+                current_dir=$(pwd)
+                local expected_from_current="$current_dir/$plugin_dir/$source"
+                
+                # Resolve the actual target to compare
+                local resolved_actual
+                resolved_actual=$(readlink -f "$target" 2>/dev/null || echo "")
+                local resolved_expected
+                resolved_expected=$(readlink -f "$expected_absolute" 2>/dev/null || echo "")
+                
+                # Check if the symlink points to our plugin file
+                if [[ "$link_target" == "$expected_relative" ]] || \
+                   [[ "$link_target" == "$expected_absolute" ]] || \
+                   [[ "$link_target" == "$expected_from_current" ]] || \
+                   [[ "$resolved_actual" == "$resolved_expected" ]]; then
+                    
+                    if [[ "$dry_run" == "true" ]]; then
+                        echo "Would remove symlink: $target -> $link_target"
+                    else
+                        if rm "$target"; then
+                            log_info "Removed symlink: $target"
+                            ((removed_count++))
+                        else
+                            log_error "Failed to remove symlink: $target"
+                            ((failed_count++))
+                        fi
+                    fi
+                else
+                    log_warn "Symlink $target points to unexpected target ($link_target), skipping"
+                    log_debug "Expected targets: $expected_relative, $expected_absolute, $expected_from_current"
+                fi
+            elif [[ -e "$target" ]]; then
+                log_warn "Target $target exists but is not a symlink, skipping"
+            else
+                log_debug "Target $target does not exist (already removed?)"
+            fi
+        fi
+    done <<< "$links"
+    
+    if [[ "$dry_run" != "true" ]]; then
+        log_info "Symlink removal complete: $removed_count removed, $failed_count failed"
+    fi
+    
+    return $failed_count
+}
+
+# Remove directories created by dotbot (only if empty)
+function remove_created_dirs() {
+    local config_file="$1"
+    local dry_run="${2:-false}"
+    
+    log_info "Removing created directories for plugin configuration: $config_file"
+    
+    local dirs
+    dirs=$(parse_dotbot_config "$config_file" "creates")
+    
+    if [[ -z "$dirs" ]]; then
+        log_info "No directories to remove"
+        return 0
+    fi
+    
+    local removed_count=0
+    local failed_count=0
+    
+    while IFS= read -r dir_line; do
+        [[ -z "$dir_line" ]] && continue
+        
+        # Expand ~ to home directory
+        local dir="${dir_line/#\~/$HOME}"
+        
+        log_debug "Processing directory: $dir"
+        
+        if [[ -d "$dir" ]]; then
+            # Check if directory is empty
+            if [[ -z "$(find "$dir" -mindepth 1 -maxdepth 1 2>/dev/null)" ]]; then
+                if [[ "$dry_run" == "true" ]]; then
+                    echo "Would remove empty directory: $dir"
+                else
+                    if rmdir "$dir" 2>/dev/null; then
+                        log_info "Removed empty directory: $dir"
+                        ((removed_count++))
+                    else
+                        log_warn "Failed to remove directory (not empty?): $dir"
+                        ((failed_count++))
+                    fi
+                fi
+            else
+                log_warn "Directory $dir is not empty, skipping removal"
+                if [[ "$dry_run" == "true" ]]; then
+                    echo "Would skip non-empty directory: $dir"
+                fi
+            fi
+        else
+            log_debug "Directory $dir does not exist (already removed?)"
+        fi
+    done <<< "$dirs"
+    
+    if [[ "$dry_run" != "true" ]]; then
+        log_info "Directory removal complete: $removed_count removed, $failed_count failed"
+    fi
+    
+    return $failed_count
+}
+
+# Show what shell commands were run during installation (for manual reversal)
+function show_shell_commands() {
+    local config_file="$1"
+    
+    # Check if the config has shell commands
+    if grep -q "^- shell:" "$config_file" 2>/dev/null; then
+        echo
+        echo "⚠️  This plugin executed shell commands during installation."
+        echo "   Please review the setup.dotbot file manually to understand"
+        echo "   what changes were made and reverse them if needed:"
+        echo "   $config_file"
+        echo
+        echo "   Common shell operations that may need manual reversal:"
+        echo "   - Directory creation (check if they should be removed)"
+        echo "   - Permission changes (may need to be restored)"
+        echo "   - System configuration changes"
+        echo
+    fi
+}
+
+# Main function to uninstall a dotbot-configured plugin
+function uninstall_dotbot_plugin() {
+    local plugin="$1"
+    local plugin_dir="$2"
+    local dry_run="${3:-false}"
+    
+    local config_file="$plugin_dir/setup.dotbot"
+    
+    if [[ ! -f "$config_file" ]]; then
+        log_error "Dotbot configuration not found: $config_file"
+        return 1
+    fi
+    
+    log_info "Uninstalling dotbot plugin: $plugin"
+    
+    if [[ "$dry_run" == "true" ]]; then
+        echo
+        echo "=== DRY RUN MODE - No changes will be made ==="
+        echo
+    fi
+    
+    # Remove symlinks
+    if ! remove_symlinks "$config_file" "$plugin_dir" "$dry_run"; then
+        log_warn "Some symlinks could not be removed"
+    fi
+    
+    # Remove created directories (only if empty)
+    if ! remove_created_dirs "$config_file" "$dry_run"; then
+        log_warn "Some directories could not be removed"
+    fi
+    
+    # Show shell commands for manual reversal
+    if grep -q "^- shell:" "$config_file" 2>/dev/null; then
+        show_shell_commands "$config_file"
+    fi
+    
+    if [[ "$dry_run" == "true" ]]; then
+        echo
+        echo "=== END DRY RUN ==="
+        echo
+    else
+        log_info "Dotbot plugin uninstall completed: $plugin"
+    fi
+    
+    return 0
+}
+
+# Validate that a symlink points to expected target
+function validate_symlink() {
+    local symlink="$1"
+    local expected_target="$2"
+    
+    if [[ ! -L "$symlink" ]]; then
+        return 1
+    fi
+    
+    local actual_target
+    actual_target=$(readlink "$symlink")
+    
+    # Handle both absolute and relative paths
+    if [[ "$actual_target" == "$expected_target" ]]; then
+        return 0
+    fi
+    
+    # Try resolving relative paths
+    local symlink_dir
+    symlink_dir=$(dirname "$symlink")
+    local resolved_actual
+    resolved_actual=$(cd "$symlink_dir" && readlink -f "$symlink" 2>/dev/null || echo "")
+    local resolved_expected
+    resolved_expected=$(readlink -f "$expected_target" 2>/dev/null || echo "")
+    
+    [[ "$resolved_actual" == "$resolved_expected" ]]
+}
+
+# Initialize uninstall library
+log_debug "Uninstall library loaded" 2>/dev/null || true

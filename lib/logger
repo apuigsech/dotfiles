@@ -101,7 +101,11 @@ function get_log_file() {
 # Function to rotate old log files (keep last 10)
 function rotate_logs() {
     if [[ -d "$DOTFILES_LOG_DIR" ]]; then
-        find "$DOTFILES_LOG_DIR" -name "install-*.log" -type f | sort -r | tail -n +11 | xargs rm -f
+        local old_logs
+        old_logs=$(find "$DOTFILES_LOG_DIR" -name "install-*.log" -type f | sort -r | tail -n +11)
+        if [[ -n "$old_logs" ]]; then
+            echo "$old_logs" | xargs rm -f
+        fi
     fi
 }
 

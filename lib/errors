@@ -31,17 +31,17 @@ function on_error() {
     local bash_lineno=$2
     local last_command="$3"
     local funcstack=("${FUNCNAME[@]}")
-    
+
     ((ERROR_COUNT++))
-    
+
     # Log error details
     log_error "Script failed at line $line_no with exit code $exit_code"
     log_error "Last command: $last_command"
-    
+
     if [[ -n "$ERROR_CONTEXT" ]]; then
         log_error "Context: $ERROR_CONTEXT"
     fi
-    
+
     # Print call stack
     log_error "Call stack:"
     local frame=0
@@ -50,37 +50,37 @@ function on_error() {
     done | while read line func file; do
         log_error "  $func() at $file:$line"
     done
-    
+
     # Store error in stack
     ERROR_STACK+=("$exit_code:$line_no:$last_command")
-    
+
     # Exit immediately if fail-fast is enabled
     if [[ "$DOTFILES_FAIL_FAST" == "true" ]]; then
         log_error "Fail-fast mode enabled, exiting immediately"
         exit $exit_code
     fi
-    
+
     return $exit_code
 }
 
 # Signal handler for cleanup
 function on_exit() {
     local exit_code=$?
-    
+
     # Stop any running spinners
     if declare -f stop_spinner >/dev/null 2>&1; then
         stop_spinner
     fi
-    
+
     # Print error summary if there were errors
     if [[ $ERROR_COUNT -gt 0 ]]; then
         log_error "Installation completed with $ERROR_COUNT errors"
         log_error "Check the log file for details: $(get_log_file 2>/dev/null || echo 'N/A')"
     fi
-    
+
     # Cleanup temporary files
     cleanup_temp_files
-    
+
     exit $exit_code
 }
 
@@ -91,9 +91,9 @@ function on_interrupt() {
 }
 
 # Set up error trapping
-trap 'on_error $LINENO $BASH_LINENO "$BASH_COMMAND"' ERR
-trap 'on_exit' EXIT
-trap 'on_interrupt' INT TERM
+# trap 'on_error $LINENO $BASH_LINENO "$BASH_COMMAND"' ERR
+# trap 'on_exit' EXIT
+# trap 'on_interrupt' INT TERM
 
 # Set error context for better debugging
 function set_error_context() {
@@ -111,12 +111,12 @@ function clear_error_context() {
 function run_with_context() {
     local context="$1"
     shift
-    
+
     set_error_context "$context"
     "$@"
     local exit_code=$?
     clear_error_context
-    
+
     return $exit_code
 }
 
@@ -179,13 +179,13 @@ function disable_fail_fast() {
 function assert() {
     local condition="$1"
     local message="${2:-Assertion failed}"
-    
+
     if ! eval "$condition"; then
         log_error "Assertion failed: $message"
         log_error "Condition: $condition"
         return 1
     fi
-    
+
     log_debug "Assertion passed: $message"
     return 0
 }
@@ -194,7 +194,7 @@ function assert() {
 function require() {
     local item="$1"
     local type="${2:-command}"
-    
+
     case "$type" in
         "command")
             if ! has_cmd "$item"; then
@@ -225,7 +225,7 @@ function require() {
             return 1
             ;;
     esac
-    
+
     log_debug "Requirement satisfied: $item ($type)"
     return 0
 }
@@ -236,7 +236,7 @@ TEMP_FILES=()
 function create_temp_file() {
     local prefix="${1:-dotfiles}"
     local temp_file
-    
+
     temp_file=$(mktemp -t "${prefix}.XXXXXX")
     TEMP_FILES+=("$temp_file")
     echo "$temp_file"
@@ -277,4 +277,4 @@ function print_error_config() {
 log_debug "Error handling initialized"
 log_debug "Debug mode: $DOTFILES_DEBUG"
 log_debug "Strict mode: $DOTFILES_STRICT"
-log_debug "Fail-fast: $DOTFILES_FAIL_FAST" 
+log_debug "Fail-fast: $DOTFILES_FAIL_FAST"
