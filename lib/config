@@ -1,0 +1,425 @@
+[[ $CONFIG_INCLUDED ]] && return
+CONFIG_INCLUDED=true
+
+# Source dependencies
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+
+# Configuration management system
+CONFIG_DIR="${HOME}/.dotfiles/config"
+CONFIG_FILE="${CONFIG_DIR}/dotfiles.conf"
+# Configuration cache (using simple variables for compatibility)
+CONFIG_CACHE_FILE="${CONFIG_DIR}/cache"
+
+# Create config directory
+mkdir -p "$CONFIG_DIR"
+
+# Default configuration values (using a simpler approach)
+function _set_default_config() {
+    # Logging
+    _config_default "log.level" "info"
+    _config_default "log.file" "${HOME}/.dotfiles/logs/install.log"
+    _config_default "log.rotation" "10"
+    _config_default "log.colors" "true"
+    
+    # Error handling
+    _config_default "error.strict" "false"
+    _config_default "error.debug" "false"
+    _config_default "error.fail_fast" "false"
+    
+    # Security
+    _config_default "security.strict" "true"
+    _config_default "security.max_file_size" "104857600"
+    _config_default "security.temp_dir" "${TMPDIR:-/tmp}"
+    
+    # Cache
+    _config_default "cache.enabled" "true"
+    _config_default "cache.ttl" "300"
+    _config_default "cache.dir" "${HOME}/.dotfiles/cache"
+    
+    # Performance
+    _config_default "performance.parallel" "true"
+    _config_default "performance.timeout" "300"
+    _config_default "performance.retries" "3"
+    
+    # Homebrew
+    _config_default "brew.auto_install" "true"
+    _config_default "brew.auto_update" "false"
+    _config_default "brew.cleanup" "true"
+    
+    # Dotbot
+    _config_default "dotbot.quiet" "true"
+    _config_default "dotbot.verbose" "false"
+    _config_default "dotbot.force" "false"
+    
+    # Plugins
+    _config_default "plugins.enabled" "brew,shell,zsh,direnv,hammerspoon,configs,bluereset,renicer"
+    _config_default "plugins.auto_discover" "true"
+    
+    # Platform specific
+    _config_default "platform.auto_detect" "true"
+    _config_default "platform.override" ""
+    
+    # User preferences
+    _config_default "ui.progress" "true"
+    _config_default "ui.spinner" "true"
+    _config_default "ui.colors" "true"
+}
+
+# Internal function to set default values
+function _config_default() {
+    local key="$1"
+    local value="$2"
+    local safe_key=$(echo "$key" | sed 's/[^a-zA-Z0-9_]/_/g')
+    eval "CONFIG_DEFAULT_${safe_key}='$value'"
+}
+
+# Initialize configuration file if it doesn't exist
+function config_init() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        log_info "Creating default configuration file: $CONFIG_FILE"
+        
+        cat > "$CONFIG_FILE" << 'EOF'
+# Dotfiles Configuration File
+# This file contains configuration settings for the dotfiles system
+# Values can be overridden by environment variables with DOTFILES_ prefix
+
+# Logging configuration
+log.level=info
+log.colors=true
+log.rotation=10
+
+# Error handling
+error.strict=false
+error.debug=false
+error.fail_fast=false
+
+# Security settings
+security.strict=true
+security.max_file_size=104857600
+
+# Cache settings
+cache.enabled=true
+cache.ttl=300
+
+# Performance settings
+performance.parallel=true
+performance.timeout=300
+performance.retries=3
+
+# Homebrew settings
+brew.auto_install=true
+brew.auto_update=false
+brew.cleanup=true
+
+# Dotbot settings
+dotbot.quiet=true
+dotbot.verbose=false
+
+# Plugin settings
+plugins.enabled=brew,shell,zsh,direnv,hammerspoon,configs,bluereset,renicer
+plugins.auto_discover=true
+
+# UI settings
+ui.progress=true
+ui.spinner=true
+ui.colors=true
+
+EOF
+        log_info "Default configuration created"
+    fi
+}
+
+# Load configuration from file
+function config_load() {
+    # Clear existing cache
+    rm -f "$CONFIG_CACHE_FILE"
+    
+    # Load defaults first
+    _set_default_config
+    
+    # Load from file if it exists
+    if [[ -f "$CONFIG_FILE" ]]; then
+        while IFS='=' read -r key value; do
+            # Skip comments and empty lines
+            if [[ "$key" =~ ^[[:space:]]*# ]] || [[ -z "$key" ]]; then
+                continue
+            fi
+            
+            # Trim whitespace
+            key=$(echo "$key" | xargs)
+            value=$(echo "$value" | xargs)
+            
+            if [[ -n "$key" && -n "$value" ]]; then
+                _config_set_cache "$key" "$value"
+                log_debug "Loaded config: $key=$value"
+            fi
+        done < "$CONFIG_FILE"
+    fi
+    
+    log_debug "Configuration loaded successfully"
+}
+
+# Internal function to set cache value
+function _config_set_cache() {
+    local key="$1"
+    local value="$2"
+    local safe_key=$(echo "$key" | sed 's/[^a-zA-Z0-9_]/_/g')
+    eval "CONFIG_CACHE_${safe_key}='$value'"
+}
+
+# Internal function to get cache value
+function _config_get_cache() {
+    local key="$1"
+    local safe_key=$(echo "$key" | sed 's/[^a-zA-Z0-9_]/_/g')
+    eval "echo \"\${CONFIG_CACHE_${safe_key}:-}\""
+}
+
+# Internal function to get default value
+function _config_get_default() {
+    local key="$1"
+    local safe_key=$(echo "$key" | sed 's/[^a-zA-Z0-9_]/_/g')
+    eval "echo \"\${CONFIG_DEFAULT_${safe_key}:-}\""
+}
+
+# Get configuration value
+function config_get() {
+    local key="$1"
+    local default_value="$2"
+    
+    # Check environment variable override first
+    local env_var="DOTFILES_$(echo "$key" | tr '.' '_' | tr '[:lower:]' '[:upper:]')"
+    if [[ -n "${!env_var:-}" ]]; then
+        echo "${!env_var}"
+        return 0
+    fi
+    
+    # Check cache
+    local cached_value
+    cached_value=$(_config_get_cache "$key")
+    if [[ -n "$cached_value" ]]; then
+        echo "$cached_value"
+        return 0
+    fi
+    
+    # Check default
+    local default_config_value
+    default_config_value=$(_config_get_default "$key")
+    if [[ -n "$default_config_value" ]]; then
+        echo "$default_config_value"
+        return 0
+    fi
+    
+    # Use provided default
+    if [[ -n "$default_value" ]]; then
+        echo "$default_value"
+        return 0
+    fi
+    
+    log_debug "Configuration key not found: $key"
+    return 1
+}
+
+# Set configuration value
+function config_set() {
+    local key="$1"
+    local value="$2"
+    local persist="${3:-false}"
+    
+    _config_set_cache "$key" "$value"
+    log_debug "Set config: $key=$value"
+    
+    if [[ "$persist" == "true" ]]; then
+        config_save
+    fi
+}
+
+# Save configuration to file
+function config_save() {
+    local temp_file
+    temp_file=$(mktemp)
+    
+    cat > "$temp_file" << 'EOF'
+# Dotfiles Configuration File
+# This file contains configuration settings for the dotfiles system
+# Values can be overridden by environment variables with DOTFILES_ prefix
+
+EOF
+    
+    # Group settings by prefix
+    local prefixes=("log" "error" "security" "cache" "performance" "brew" "dotbot" "plugins" "platform" "ui")
+    
+    for prefix in "${prefixes[@]}"; do
+        echo "# ${prefix^} settings" >> "$temp_file"
+        for key in "${!CONFIG_CACHE[@]}"; do
+            if [[ "$key" =~ ^${prefix}\. ]]; then
+                echo "$key=${CONFIG_CACHE[$key]}" >> "$temp_file"
+            fi
+        done
+        echo >> "$temp_file"
+    done
+    
+    # Add any remaining settings
+    echo "# Other settings" >> "$temp_file"
+    for key in "${!CONFIG_CACHE[@]}"; do
+        local found=false
+        for prefix in "${prefixes[@]}"; do
+            if [[ "$key" =~ ^${prefix}\. ]]; then
+                found=true
+                break
+            fi
+        done
+        if [[ "$found" == "false" ]]; then
+            echo "$key=${CONFIG_CACHE[$key]}" >> "$temp_file"
+        fi
+    done
+    
+    # Replace original file
+    if mv "$temp_file" "$CONFIG_FILE"; then
+        log_info "Configuration saved to: $CONFIG_FILE"
+    else
+        rm -f "$temp_file"
+        log_error "Failed to save configuration"
+        return 1
+    fi
+}
+
+# Configuration validation
+function config_validate() {
+    local errors=0
+    
+    # Validate log level
+    local log_level
+    log_level=$(config_get "log.level")
+    if [[ ! "$log_level" =~ ^(debug|info|warn|error)$ ]]; then
+        log_error "Invalid log level: $log_level"
+        ((errors++))
+    fi
+    
+    # Validate boolean values
+    local boolean_keys=("log.colors" "error.strict" "error.debug" "error.fail_fast" "security.strict" "cache.enabled" "performance.parallel" "brew.auto_install" "brew.auto_update" "brew.cleanup" "dotbot.quiet" "dotbot.verbose" "plugins.auto_discover" "ui.progress" "ui.spinner" "ui.colors")
+    
+    for key in "${boolean_keys[@]}"; do
+        local value
+        value=$(config_get "$key")
+        if [[ ! "$value" =~ ^(true|false)$ ]]; then
+            log_error "Invalid boolean value for $key: $value"
+            ((errors++))
+        fi
+    done
+    
+    # Validate numeric values
+    local numeric_keys=("log.rotation" "security.max_file_size" "cache.ttl" "performance.timeout" "performance.retries")
+    
+    for key in "${numeric_keys[@]}"; do
+        local value
+        value=$(config_get "$key")
+        if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+            log_error "Invalid numeric value for $key: $value"
+            ((errors++))
+        fi
+    done
+    
+    # Validate directories
+    local dir_keys=("security.temp_dir" "cache.dir")
+    
+    for key in "${dir_keys[@]}"; do
+        local value
+        value=$(config_get "$key")
+        if [[ ! -d "$value" ]]; then
+            log_warn "Directory does not exist for $key: $value"
+        fi
+    done
+    
+    if [[ $errors -eq 0 ]]; then
+        log_info "Configuration validation passed"
+        return 0
+    else
+        log_error "Configuration validation failed with $errors errors"
+        return 1
+    fi
+}
+
+# Configuration helpers
+function config_get_bool() {
+    local key="$1"
+    local default_value="${2:-false}"
+    local value
+    
+    value=$(config_get "$key" "$default_value")
+    [[ "$value" == "true" ]]
+}
+
+function config_get_int() {
+    local key="$1"
+    local default_value="${2:-0}"
+    local value
+    
+    value=$(config_get "$key" "$default_value")
+    echo "$value"
+}
+
+function config_get_array() {
+    local key="$1"
+    local default_value="$2"
+    local value
+    
+    value=$(config_get "$key" "$default_value")
+    echo "$value" | tr ',' ' '
+}
+
+# Show current configuration
+function config_show() {
+    local filter="$1"
+    
+    # Load config if not already loaded
+    if [[ ${#CONFIG_CACHE[@]} -eq 0 ]]; then
+        config_load
+    fi
+    
+    echo "Current Configuration:"
+    echo "====================="
+    
+    for key in $(printf '%s\n' "${!CONFIG_CACHE[@]}" | sort); do
+        if [[ -z "$filter" || "$key" =~ $filter ]]; then
+            echo "  $key = ${CONFIG_CACHE[$key]}"
+        fi
+    done
+}
+
+# Reset configuration to defaults
+function config_reset() {
+    local backup_file="${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+    
+    if [[ -f "$CONFIG_FILE" ]]; then
+        cp "$CONFIG_FILE" "$backup_file"
+        log_info "Backed up current config to: $backup_file"
+    fi
+    
+    rm -f "$CONFIG_FILE"
+    config_init
+    config_load
+    
+    log_info "Configuration reset to defaults"
+}
+
+# Export configuration as environment variables
+function config_export() {
+    # Load config if not already loaded
+    if [[ ${#CONFIG_CACHE[@]} -eq 0 ]]; then
+        config_load
+    fi
+    
+    for key in "${!CONFIG_CACHE[@]}"; do
+        local env_var="DOTFILES_$(echo "$key" | tr '.' '_' | tr '[:lower:]' '[:upper:]')"
+        export "$env_var"="${CONFIG_CACHE[$key]}"
+        log_debug "Exported: $env_var=${CONFIG_CACHE[$key]}"
+    done
+}
+
+# Initialize configuration system
+config_init
+config_load
+
+log_debug "Configuration system initialized"
+log_debug "Config file: $CONFIG_FILE"
+log_debug "Loaded ${#CONFIG_CACHE[@]} configuration settings" 

@@ -1,0 +1,201 @@
+[[ $PROGRESS_INCLUDED ]] && return
+PROGRESS_INCLUDED=true
+
+# Source logger for progress reporting
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+
+# Progress tracking variables
+PROGRESS_TOTAL=0
+PROGRESS_CURRENT=0
+PROGRESS_FAILED=0
+PROGRESS_SUCCESS=0
+
+# Spinner animation
+SPINNER_CHARS="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+SPINNER_PID=""
+
+# Start spinner with message
+function start_spinner() {
+    local message="$1"
+    stop_spinner  # Stop any existing spinner
+    
+    {
+        local i=0
+        while true; do
+            local char=${SPINNER_CHARS:$((i % ${#SPINNER_CHARS})):1}
+            printf "\r%s %s" "$char" "$message"
+            sleep 0.1
+            ((i++))
+        done
+    } &
+    
+    SPINNER_PID=$!
+    disown
+}
+
+# Stop spinner
+function stop_spinner() {
+    if [[ -n "$SPINNER_PID" ]]; then
+        kill "$SPINNER_PID" 2>/dev/null || true
+        SPINNER_PID=""
+        printf "\r"
+    fi
+}
+
+# Run command with spinner and status
+function run_with_spinner() {
+    local desc="$1"
+    shift
+    
+    start_spinner "$desc..."
+    
+    local output
+    local exit_code
+    
+    # Capture output and exit code
+    if output=$("$@" 2>&1); then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
+    
+    stop_spinner
+    
+    if [[ $exit_code -eq 0 ]]; then
+        printf "\r✓ %s\n" "$desc"
+        ((PROGRESS_SUCCESS++))
+        log_info "$desc: SUCCESS"
+        [[ -n "$output" ]] && log_debug "Output: $output"
+    else
+        printf "\r✗ %s\n" "$desc"
+        ((PROGRESS_FAILED++))
+        log_error "$desc: FAILED (exit code: $exit_code)"
+        [[ -n "$output" ]] && log_error "Output: $output"
+    fi
+    
+    ((PROGRESS_CURRENT++))
+    return $exit_code
+}
+
+# Simple status function without spinner
+function run_with_status() {
+    local desc="$1"
+    shift
+    
+    printf "%-50s" "$desc..."
+    
+    local output
+    local exit_code
+    
+    if output=$("$@" 2>&1); then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
+    
+    if [[ $exit_code -eq 0 ]]; then
+        printf " ✓\n"
+        ((PROGRESS_SUCCESS++))
+        log_info "$desc: SUCCESS"
+        [[ -n "$output" ]] && log_debug "Output: $output"
+    else
+        printf " ✗\n"
+        ((PROGRESS_FAILED++))
+        log_error "$desc: FAILED (exit code: $exit_code)"
+        [[ -n "$output" ]] && log_error "Output: $output"
+    fi
+    
+    ((PROGRESS_CURRENT++))
+    return $exit_code
+}
+
+# Progress bar
+function show_progress() {
+    local current=$1
+    local total=$2
+    local width=50
+    local percentage=$((current * 100 / total))
+    local filled=$((current * width / total))
+    
+    printf "\r["
+    for ((i = 0; i < filled; i++)); do
+        printf "="
+    done
+    for ((i = filled; i < width; i++)); do
+        printf " "
+    done
+    printf "] %d%% (%d/%d)" "$percentage" "$current" "$total"
+}
+
+# Initialize progress tracking
+function init_progress() {
+    local total=$1
+    PROGRESS_TOTAL=$total
+    PROGRESS_CURRENT=0
+    PROGRESS_FAILED=0
+    PROGRESS_SUCCESS=0
+}
+
+# Update progress
+function update_progress() {
+    if [[ $PROGRESS_TOTAL -gt 0 ]]; then
+        show_progress $PROGRESS_CURRENT $PROGRESS_TOTAL
+    fi
+}
+
+# Finish progress tracking
+function finish_progress() {
+    stop_spinner
+    if [[ $PROGRESS_TOTAL -gt 0 ]]; then
+        printf "\n"
+    fi
+}
+
+# Print progress summary
+function print_progress_summary() {
+    local total=$((PROGRESS_SUCCESS + PROGRESS_FAILED))
+    
+    if [[ $total -eq 0 ]]; then
+        return
+    fi
+    
+    echo
+    echo "=== Progress Summary ==="
+    echo "Total tasks: $total"
+    echo "Successful: $PROGRESS_SUCCESS"
+    echo "Failed: $PROGRESS_FAILED"
+    
+    if [[ $PROGRESS_FAILED -gt 0 ]]; then
+        echo "Success rate: $((PROGRESS_SUCCESS * 100 / total))%"
+        log_warn "Some tasks failed. Check the log for details: $(get_log_file)"
+    else
+        echo "All tasks completed successfully!"
+        log_info "All tasks completed successfully"
+    fi
+    echo
+}
+
+# Check if we're in a terminal that supports fancy output
+function supports_fancy_output() {
+    [[ -t 1 ]] && [[ "$TERM" != "dumb" ]] && [[ -z "${CI:-}" ]]
+}
+
+# Enhanced run function that chooses appropriate display method
+function run_task() {
+    local desc="$1"
+    shift
+    
+    if supports_fancy_output; then
+        run_with_spinner "$desc" "$@"
+    else
+        run_with_status "$desc" "$@"
+    fi
+}
+
+# Cleanup function to stop spinner on exit
+function cleanup_progress() {
+    stop_spinner
+}
+
+# Set up cleanup trap
+trap cleanup_progress EXIT 

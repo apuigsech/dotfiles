@@ -1,0 +1,498 @@
+[[ $PLATFORM_INCLUDED ]] && return
+PLATFORM_INCLUDED=true
+
+# Source dependencies
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+source "${BASE_DIR}/lib/cache" 2>/dev/null || true
+
+# Platform detection cache
+PLATFORM_OS=""
+PLATFORM_ARCH=""
+PLATFORM_SHELL=""
+PLATFORM_DISTRO=""
+PLATFORM_VERSION=""
+
+# Detect operating system
+function detect_os() {
+    if [[ -n "$PLATFORM_OS" ]]; then
+        echo "$PLATFORM_OS"
+        return 0
+    fi
+    
+    local os
+    case "$(uname -s)" in
+        Darwin)
+            os="macos"
+            ;;
+        Linux)
+            if grep -qi microsoft /proc/version 2>/dev/null; then
+                os="wsl"
+            elif [[ -f /proc/version ]] && grep -qi "ubuntu" /proc/version; then
+                os="ubuntu"
+            elif [[ -f /etc/alpine-release ]]; then
+                os="alpine"
+            elif [[ -f /etc/centos-release ]]; then
+                os="centos"
+            elif [[ -f /etc/redhat-release ]]; then
+                os="redhat"
+            elif [[ -f /etc/debian_version ]]; then
+                os="debian"
+            else
+                os="linux"
+            fi
+            ;;
+        FreeBSD)
+            os="freebsd"
+            ;;
+        OpenBSD)
+            os="openbsd"
+            ;;
+        NetBSD)
+            os="netbsd"
+            ;;
+        CYGWIN*|MINGW*|MSYS*)
+            os="windows"
+            ;;
+        *)
+            os="unknown"
+            ;;
+    esac
+    
+    PLATFORM_OS="$os"
+    echo "$os"
+}
+
+# Detect architecture
+function detect_arch() {
+    if [[ -n "$PLATFORM_ARCH" ]]; then
+        echo "$PLATFORM_ARCH"
+        return 0
+    fi
+    
+    local arch
+    case "$(uname -m)" in
+        x86_64|amd64)
+            arch="x86_64"
+            ;;
+        arm64|aarch64)
+            arch="arm64"
+            ;;
+        armv7l|armv6l)
+            arch="arm"
+            ;;
+        i386|i686)
+            arch="i386"
+            ;;
+        *)
+            arch="$(uname -m)"
+            ;;
+    esac
+    
+    PLATFORM_ARCH="$arch"
+    echo "$arch"
+}
+
+# Detect shell
+function detect_shell() {
+    if [[ -n "$PLATFORM_SHELL" ]]; then
+        echo "$PLATFORM_SHELL"
+        return 0
+    fi
+    
+    local shell
+    if [[ -n "$BASH_VERSION" ]]; then
+        shell="bash"
+    elif [[ -n "$ZSH_VERSION" ]]; then
+        shell="zsh"
+    elif [[ -n "$FISH_VERSION" ]]; then
+        shell="fish"
+    elif [[ "$0" == *"dash"* ]]; then
+        shell="dash"
+    elif [[ "$0" == *"sh"* ]]; then
+        shell="sh"
+    else
+        shell="$(basename "$SHELL" 2>/dev/null || echo "unknown")"
+    fi
+    
+    PLATFORM_SHELL="$shell"
+    echo "$shell"
+}
+
+# Detect Linux distribution
+function detect_distro() {
+    if [[ -n "$PLATFORM_DISTRO" ]]; then
+        echo "$PLATFORM_DISTRO"
+        return 0
+    fi
+    
+    local distro="unknown"
+    
+    if [[ "$(detect_os)" != "linux" && "$(detect_os)" != "wsl" ]]; then
+        PLATFORM_DISTRO="$distro"
+        echo "$distro"
+        return 0
+    fi
+    
+    # Try /etc/os-release first (most modern)
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        distro="${ID:-unknown}"
+    # Try lsb_release command
+    elif command -v lsb_release >/dev/null 2>&1; then
+        distro=$(lsb_release -si 2>/dev/null | tr '[:upper:]' '[:lower:]')
+    # Try specific release files
+    elif [[ -f /etc/redhat-release ]]; then
+        if grep -qi "centos" /etc/redhat-release; then
+            distro="centos"
+        elif grep -qi "red hat" /etc/redhat-release; then
+            distro="rhel"
+        elif grep -qi "fedora" /etc/redhat-release; then
+            distro="fedora"
+        else
+            distro="redhat"
+        fi
+    elif [[ -f /etc/debian_version ]]; then
+        if [[ -f /etc/issue ]] && grep -qi "ubuntu" /etc/issue; then
+            distro="ubuntu"
+        else
+            distro="debian"
+        fi
+    elif [[ -f /etc/alpine-release ]]; then
+        distro="alpine"
+    elif [[ -f /etc/arch-release ]]; then
+        distro="arch"
+    elif [[ -f /etc/gentoo-release ]]; then
+        distro="gentoo"
+    elif [[ -f /etc/SuSE-release ]]; then
+        distro="suse"
+    fi
+    
+    PLATFORM_DISTRO="$distro"
+    echo "$distro"
+}
+
+# Detect version
+function detect_version() {
+    if [[ -n "$PLATFORM_VERSION" ]]; then
+        echo "$PLATFORM_VERSION"
+        return 0
+    fi
+    
+    local version="unknown"
+    local os
+    os=$(detect_os)
+    
+    case "$os" in
+        macos)
+            version=$(sw_vers -productVersion 2>/dev/null || echo "unknown")
+            ;;
+        linux|wsl)
+            if [[ -f /etc/os-release ]]; then
+                source /etc/os-release
+                version="${VERSION_ID:-unknown}"
+            elif command -v lsb_release >/dev/null 2>&1; then
+                version=$(lsb_release -sr 2>/dev/null || echo "unknown")
+            else
+                version=$(uname -r)
+            fi
+            ;;
+        freebsd|openbsd|netbsd)
+            version=$(uname -r)
+            ;;
+        *)
+            version=$(uname -r)
+            ;;
+    esac
+    
+    PLATFORM_VERSION="$version"
+    echo "$version"
+}
+
+# Platform-specific feature detection
+function has_systemd() {
+    [[ -d /run/systemd/system ]]
+}
+
+function has_homebrew_support() {
+    local os
+    os=$(detect_os)
+    [[ "$os" == "macos" || "$os" == "linux" ]]
+}
+
+function has_apt() {
+    command -v apt >/dev/null 2>&1 || command -v apt-get >/dev/null 2>&1
+}
+
+function has_yum() {
+    command -v yum >/dev/null 2>&1
+}
+
+function has_dnf() {
+    command -v dnf >/dev/null 2>&1
+}
+
+function has_pacman() {
+    command -v pacman >/dev/null 2>&1
+}
+
+function has_zypper() {
+    command -v zypper >/dev/null 2>&1
+}
+
+function has_apk() {
+    command -v apk >/dev/null 2>&1
+}
+
+# Platform compatibility functions
+function is_bash_compatible() {
+    [[ "$(detect_shell)" =~ ^(bash|zsh)$ ]]
+}
+
+function is_posix_compatible() {
+    [[ "$(detect_shell)" =~ ^(bash|zsh|dash|sh)$ ]]
+}
+
+function supports_colors() {
+    [[ -t 1 ]] && [[ "$TERM" != "dumb" ]] && [[ -n "$TERM" ]]
+}
+
+function supports_unicode() {
+    [[ "$LANG" =~ UTF-8 ]] || [[ "$LC_ALL" =~ UTF-8 ]] || [[ "$LC_CTYPE" =~ UTF-8 ]]
+}
+
+# Cross-platform command wrappers
+function platform_stat() {
+    local file="$1"
+    local format="$2"
+    
+    case "$(detect_os)" in
+        macos|freebsd|openbsd|netbsd)
+            stat -f "$format" "$file" 2>/dev/null
+            ;;
+        *)
+            stat -c "$format" "$file" 2>/dev/null
+            ;;
+    esac
+}
+
+function platform_date() {
+    local format="$1"
+    
+    case "$(detect_os)" in
+        macos|freebsd|openbsd|netbsd)
+            if [[ -n "$format" ]]; then
+                date -j "$format" 2>/dev/null
+            else
+                date
+            fi
+            ;;
+        *)
+            if [[ -n "$format" ]]; then
+                date "$format" 2>/dev/null
+            else
+                date
+            fi
+            ;;
+    esac
+}
+
+function platform_find() {
+    local path="$1"
+    shift
+    
+    # Use GNU find options when available, fallback to POSIX
+    if find --version 2>/dev/null | grep -q GNU; then
+        find "$path" "$@"
+    else
+        # Adjust GNU-specific options for BSD find
+        local args=()
+        for arg in "$@"; do
+            case "$arg" in
+                -printf)
+                    # Skip -printf on BSD find
+                    ;;
+                *)
+                    args+=("$arg")
+                    ;;
+            esac
+        done
+        find "$path" "${args[@]}"
+    fi
+}
+
+function platform_sed() {
+    case "$(detect_os)" in
+        macos|freebsd|openbsd|netbsd)
+            # BSD sed
+            sed -E "$@"
+            ;;
+        *)
+            # GNU sed
+            sed -r "$@"
+            ;;
+    esac
+}
+
+function platform_xargs() {
+    case "$(detect_os)" in
+        macos|freebsd|openbsd|netbsd)
+            # BSD xargs doesn't support -r by default
+            xargs "$@"
+            ;;
+        *)
+            # GNU xargs
+            xargs -r "$@"
+            ;;
+    esac
+}
+
+# Package manager detection
+function get_package_manager() {
+    if has_apt; then
+        echo "apt"
+    elif has_dnf; then
+        echo "dnf"
+    elif has_yum; then
+        echo "yum"
+    elif has_pacman; then
+        echo "pacman"
+    elif has_zypper; then
+        echo "zypper"
+    elif has_apk; then
+        echo "apk"
+    elif has_homebrew_support && command -v brew >/dev/null 2>&1; then
+        echo "brew"
+    else
+        echo "unknown"
+    fi
+}
+
+# Environment setup for platform compatibility
+function setup_platform_environment() {
+    local os
+    os=$(detect_os)
+    
+    case "$os" in
+        macos)
+            # Add Homebrew paths
+            if [[ -d /opt/homebrew/bin ]]; then
+                export PATH="/opt/homebrew/bin:$PATH"
+            elif [[ -d /usr/local/bin ]]; then
+                export PATH="/usr/local/bin:$PATH"
+            fi
+            
+            # Set locale
+            export LANG="${LANG:-en_US.UTF-8}"
+            export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+            ;;
+        linux|wsl)
+            # Set locale
+            export LANG="${LANG:-en_US.UTF-8}"
+            export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+            
+            # Add common paths
+            export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+            ;;
+    esac
+    
+    # Set common environment variables
+    export EDITOR="${EDITOR:-nano}"
+    export PAGER="${PAGER:-less}"
+    
+    log_debug "Platform environment configured for: $os"
+}
+
+# Platform-specific installation helpers
+function install_package() {
+    local package="$1"
+    local pm
+    pm=$(get_package_manager)
+    
+    case "$pm" in
+        apt)
+            sudo apt-get update && sudo apt-get install -y "$package"
+            ;;
+        dnf)
+            sudo dnf install -y "$package"
+            ;;
+        yum)
+            sudo yum install -y "$package"
+            ;;
+        pacman)
+            sudo pacman -S --noconfirm "$package"
+            ;;
+        zypper)
+            sudo zypper install -y "$package"
+            ;;
+        apk)
+            sudo apk add "$package"
+            ;;
+        brew)
+            brew install "$package"
+            ;;
+        *)
+            log_error "Unknown package manager, cannot install: $package"
+            return 1
+            ;;
+    esac
+}
+
+# Platform information display
+function show_platform_info() {
+    echo "Platform Information:"
+    echo "===================="
+    echo "  OS: $(detect_os)"
+    echo "  Architecture: $(detect_arch)"
+    echo "  Shell: $(detect_shell)"
+    echo "  Distribution: $(detect_distro)"
+    echo "  Version: $(detect_version)"
+    echo "  Package Manager: $(get_package_manager)"
+    echo
+    echo "Features:"
+    echo "  Systemd: $(has_systemd && echo "Yes" || echo "No")"
+    echo "  Homebrew Support: $(has_homebrew_support && echo "Yes" || echo "No")"
+    echo "  Colors: $(supports_colors && echo "Yes" || echo "No")"
+    echo "  Unicode: $(supports_unicode && echo "Yes" || echo "No")"
+    echo "  BASH Compatible: $(is_bash_compatible && echo "Yes" || echo "No")"
+    echo "  POSIX Compatible: $(is_posix_compatible && echo "Yes" || echo "No")"
+}
+
+# Platform-specific path helpers
+function get_config_dir() {
+    case "$(detect_os)" in
+        macos)
+            echo "${HOME}/Library/Application Support"
+            ;;
+        *)
+            echo "${XDG_CONFIG_HOME:-${HOME}/.config}"
+            ;;
+    esac
+}
+
+function get_cache_dir() {
+    case "$(detect_os)" in
+        macos)
+            echo "${HOME}/Library/Caches"
+            ;;
+        *)
+            echo "${XDG_CACHE_HOME:-${HOME}/.cache}"
+            ;;
+    esac
+}
+
+function get_data_dir() {
+    case "$(detect_os)" in
+        macos)
+            echo "${HOME}/Library/Application Support"
+            ;;
+        *)
+            echo "${XDG_DATA_HOME:-${HOME}/.local/share}"
+            ;;
+    esac
+}
+
+# Initialize platform detection
+setup_platform_environment
+
+log_debug "Platform library initialized"
+log_debug "OS: $(detect_os), Arch: $(detect_arch), Shell: $(detect_shell)" 

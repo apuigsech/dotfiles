@@ -1,59 +1,348 @@
 [[ $BREW_INCLUDED ]] && return
 BREW_INCLUDED=true
 
+# Source dependencies
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+source "${BASE_DIR}/lib/utils" 2>/dev/null || true
+
+# Homebrew configuration
+HOMEBREW_INSTALL_URL="https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+HOMEBREW_REQUIRED_CMDS=("curl" "git")
+
+# Check if Homebrew is installed
 function brew_is_installed() {
     has_cmd brew
 }
 
-function brew_install() {
+# Get Homebrew installation path
+function brew_get_path() {
     if brew_is_installed; then
-        echo "Homebrew is already installed."
-        return 0
+        brew --prefix 2>/dev/null
     else
-        echo "Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-                
-        if [[ $? -eq 0 ]]; then
-            echo "Homebrew installed successfully."
-            return 0
+        # Default paths based on architecture
+        if is_macos; then
+            if [[ "$(uname -m)" == "arm64" ]]; then
+                echo "/opt/homebrew"
+            else
+                echo "/usr/local"
+            fi
         else
-            echo "Failed to install Homebrew."
-            return 1
+            echo "/home/linuxbrew/.linuxbrew"
         fi
     fi
 }
 
-function brew_install_pkg() {
-    local pkg=$1
-    local type=$2
-
-    if ! brew_is_installed; then
-        brew_install
-    fi
-
-    if [[ $type == "cask" ]]; then
-        xargs brew install --cask $pkg
-    else
-        xargs brew install $pkg
-    fi
-}
-
-function brew_install_pkgs() {
-    local package_file=$1
-    local type=$2
-
-    if ! brew_is_installed; then
-        brew_install
-    fi
-
-    if [[ ! -f $package_file ]]; then
-        echo "File not found: $package_file"
+# Validate prerequisites for Homebrew installation
+function brew_validate_prerequisites() {
+    log_info "Validating Homebrew prerequisites..."
+    
+    # Check required commands
+    for cmd in "${HOMEBREW_REQUIRED_CMDS[@]}"; do
+        if ! has_cmd "$cmd"; then
+            log_error "Required command not found: $cmd"
+            return 1
+        fi
+    done
+    
+    # Check if running as root (not recommended)
+    if is_root; then
+        log_error "Homebrew installation should not be run as root"
         return 1
     fi
+    
+    # Platform-specific checks
+    if is_macos; then
+        # Check for Xcode Command Line Tools
+        if ! xcode-select -p &>/dev/null; then
+            log_warn "Xcode Command Line Tools not found, they may be required"
+        fi
+    elif is_linux; then
+        # Check for essential build tools
+        for cmd in gcc make; do
+            if ! has_cmd "$cmd"; then
+                log_warn "Build tool not found: $cmd (may be required for some packages)"
+            fi
+        done
+    fi
+    
+    log_info "Prerequisites validation completed"
+    return 0
+}
 
-    if [[ $type == "cask" ]]; then
-        xargs brew install --cask < $package_file
+# Install Homebrew
+function brew_install() {
+    if brew_is_installed; then
+        log_info "Homebrew is already installed at $(brew_get_path)"
+        return 0
+    fi
+    
+    log_info "Installing Homebrew..."
+    
+    # Validate prerequisites
+    if ! brew_validate_prerequisites; then
+        log_error "Prerequisites validation failed"
+        return 1
+    fi
+    
+    # Download and execute installation script
+    log_info "Downloading Homebrew installation script..."
+    if ! safe_download "$HOMEBREW_INSTALL_URL" "/tmp/homebrew-install.sh"; then
+        log_error "Failed to download Homebrew installation script"
+        return 1
+    fi
+    
+    # Execute installation script
+    log_info "Running Homebrew installation script..."
+    if /bin/bash "/tmp/homebrew-install.sh" </dev/null; then
+        # Clean up
+        rm -f "/tmp/homebrew-install.sh"
+        
+        # Update PATH for current session
+        local brew_path=$(brew_get_path)
+        if [[ -d "$brew_path/bin" ]]; then
+            prepend_path "$brew_path/bin"
+        fi
+        
+        if brew_is_installed; then
+            log_info "Homebrew installed successfully at $(brew_get_path)"
+            return 0
+        else
+            log_error "Homebrew installation completed but brew command not found"
+            return 1
+        fi
     else
-        xargs brew install < $package_file
+        local exit_code=$?
+        rm -f "/tmp/homebrew-install.sh"
+        log_error "Homebrew installation failed with exit code: $exit_code"
+        return $exit_code
     fi
 }
+
+# Update Homebrew
+function brew_update() {
+    if ! brew_is_installed; then
+        log_error "Homebrew is not installed"
+        return 1
+    fi
+    
+    log_info "Updating Homebrew..."
+    if brew update; then
+        log_info "Homebrew updated successfully"
+        return 0
+    else
+        log_error "Failed to update Homebrew"
+        return 1
+    fi
+}
+
+# Check if a package is installed
+function brew_is_package_installed() {
+    local pkg=$1
+    local type=${2:-formula}
+    
+    if [[ -z "$pkg" ]]; then
+        log_error "Package name cannot be empty"
+        return 1
+    fi
+    
+    if ! brew_is_installed; then
+        return 1
+    fi
+    
+    case "$type" in
+        "cask")
+            brew list --cask "$pkg" &>/dev/null
+            ;;
+        "formula"|*)
+            brew list "$pkg" &>/dev/null
+            ;;
+    esac
+}
+
+# Install a single package
+function brew_install_pkg() {
+    local pkg=$1
+    local type=${2:-formula}
+    
+    if [[ -z "$pkg" ]]; then
+        log_error "Package name cannot be empty"
+        return 1
+    fi
+    
+    # Ensure Homebrew is installed
+    if ! brew_is_installed; then
+        log_info "Homebrew not found, installing..."
+        if ! brew_install; then
+            return 1
+        fi
+    fi
+    
+    # Check if already installed
+    if brew_is_package_installed "$pkg" "$type"; then
+        log_info "Package already installed: $pkg ($type)"
+        return 0
+    fi
+    
+    # Install package
+    log_info "Installing $type: $pkg"
+    case "$type" in
+        "cask")
+            if brew install --cask "$pkg"; then
+                log_info "Successfully installed cask: $pkg"
+                return 0
+            else
+                log_error "Failed to install cask: $pkg"
+                return 1
+            fi
+            ;;
+        "formula"|*)
+            if brew install "$pkg"; then
+                log_info "Successfully installed formula: $pkg"
+                return 0
+            else
+                log_error "Failed to install formula: $pkg"
+                return 1
+            fi
+            ;;
+    esac
+}
+
+# Install packages from a file
+function brew_install_pkgs() {
+    local package_file=$1
+    local type=${2:-formula}
+    
+    if [[ -z "$package_file" ]]; then
+        log_error "Package file path cannot be empty"
+        return 1
+    fi
+    
+    if [[ ! -f "$package_file" ]]; then
+        log_error "Package file not found: $package_file"
+        return 1
+    fi
+    
+    if [[ ! -r "$package_file" ]]; then
+        log_error "Package file not readable: $package_file"
+        return 1
+    fi
+    
+    # Ensure Homebrew is installed
+    if ! brew_is_installed; then
+        log_info "Homebrew not found, installing..."
+        if ! brew_install; then
+            return 1
+        fi
+    fi
+    
+    # Count packages for progress tracking
+    local total_packages
+    total_packages=$(grep -c '^[^#[:space:]]' "$package_file" 2>/dev/null || echo "0")
+    
+    if [[ $total_packages -eq 0 ]]; then
+        log_warn "No packages found in file: $package_file"
+        return 0
+    fi
+    
+    log_info "Installing $total_packages ${type}s from $package_file"
+    
+    local success_count=0
+    local fail_count=0
+    
+    # Process each package
+    while IFS= read -r pkg; do
+        # Skip empty lines and comments
+        if [[ -z "$pkg" || "$pkg" =~ ^[[:space:]]*# ]]; then
+            continue
+        fi
+        
+        # Remove leading/trailing whitespace
+        pkg=$(echo "$pkg" | xargs)
+        
+        if brew_install_pkg "$pkg" "$type"; then
+            ((success_count++))
+        else
+            ((fail_count++))
+        fi
+    done < "$package_file"
+    
+    # Report results
+    log_info "Package installation completed: $success_count successful, $fail_count failed"
+    
+    if [[ $fail_count -gt 0 ]]; then
+        log_warn "Some packages failed to install. Check the log for details."
+        return 1
+    fi
+    
+    return 0
+}
+
+# Cleanup Homebrew
+function brew_cleanup() {
+    if ! brew_is_installed; then
+        log_warn "Homebrew is not installed, skipping cleanup"
+        return 0
+    fi
+    
+    log_info "Cleaning up Homebrew..."
+    if brew cleanup; then
+        log_info "Homebrew cleanup completed"
+        return 0
+    else
+        log_error "Homebrew cleanup failed"
+        return 1
+    fi
+}
+
+# Get Homebrew doctor output
+function brew_doctor() {
+    if ! brew_is_installed; then
+        log_error "Homebrew is not installed"
+        return 1
+    fi
+    
+    log_info "Running Homebrew doctor..."
+    brew doctor
+}
+
+# List installed packages
+function brew_list_installed() {
+    local type=${1:-formula}
+    
+    if ! brew_is_installed; then
+        log_error "Homebrew is not installed"
+        return 1
+    fi
+    
+    case "$type" in
+        "cask")
+            brew list --cask
+            ;;
+        "formula"|*)
+            brew list
+            ;;
+    esac
+}
+
+# Setup Homebrew environment
+function brew_setup_env() {
+    local brew_path=$(brew_get_path)
+    
+    if [[ -d "$brew_path/bin" ]]; then
+        prepend_path "$brew_path/bin"
+    fi
+    
+    # Set up shell environment
+    if [[ -f "$brew_path/bin/brew" ]]; then
+        eval "$("$brew_path/bin/brew" shellenv)"
+        log_debug "Homebrew environment configured"
+    fi
+}
+
+# Initialize Homebrew setup
+if brew_is_installed; then
+    brew_setup_env
+    log_debug "Homebrew library loaded - installed at $(brew_get_path)"
+else
+    log_debug "Homebrew library loaded - not installed"
+fi

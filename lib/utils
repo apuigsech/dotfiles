@@ -1,48 +1,290 @@
 [[ $UTILS_INCLUDED ]] && return
 UTILS_INCLUDED=true
 
+# Source logger if available
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+
+# Enhanced command checking with logging
 function has_cmd() {
     local cmd=$1
+    
+    if [[ -z "$cmd" ]]; then
+        log_error "has_cmd: Command name cannot be empty" 2>/dev/null || echo "Error: Command name cannot be empty" >&2
+        return 1
+    fi
 
-    if command -v ${cmd} >/dev/null 2>&1; then
+    if command -v "$cmd" >/dev/null 2>&1; then
+        log_debug "Command found: $cmd" 2>/dev/null || true
         return 0
     else
+        log_debug "Command not found: $cmd" 2>/dev/null || true
         return 1
     fi 
 }
 
+# Enhanced directory sourcing with better error handling
 function source_dir() {
     local dir=$1
     local ext=$2
+    
+    if [[ -z "$dir" ]]; then
+        log_error "source_dir: Directory path cannot be empty" 2>/dev/null || echo "Error: Directory path cannot be empty" >&2
+        return 1
+    fi
 
-    if [[ ! -d $dir ]]; then
-        echo "Error: Directory '${dir}' does not exist."
+    if [[ ! -d "$dir" ]]; then
+        log_warn "Directory does not exist: $dir" 2>/dev/null || echo "Warning: Directory '$dir' does not exist." >&2
         return 1
     fi
 
     local files=()
-    if [[ -n $ext ]]; then
-        files=("$dir"/*."$ext")
+    local count=0
+    
+    if [[ -n "$ext" ]]; then
+        # Use array to handle filenames with spaces
+        while IFS= read -r -d '' file; do
+            files+=("$file")
+        done < <(find "$dir" -maxdepth 1 -name "*.$ext" -type f -print0 2>/dev/null)
     else
-        files=("$dir"/*)
+        while IFS= read -r -d '' file; do
+            files+=("$file")
+        done < <(find "$dir" -maxdepth 1 -type f -print0 2>/dev/null)
     fi
 
     for file in "${files[@]}"; do
-        if [[ -f $file ]]; then
-            echo "Loading... $file"
-            source "$file"
+        if [[ -f "$file" && -r "$file" ]]; then
+            log_debug "Loading: $file" 2>/dev/null || echo "Loading... $file"
+            if source "$file"; then
+                ((count++))
+                log_debug "Successfully loaded: $file" 2>/dev/null || true
+            else
+                log_error "Failed to load: $file" 2>/dev/null || echo "Error: Failed to load $file" >&2
+            fi
+        else
+            log_warn "File not readable: $file" 2>/dev/null || echo "Warning: File not readable: $file" >&2
         fi
     done
+    
+    log_info "Loaded $count files from $dir" 2>/dev/null || true
+    return 0
 }
 
+# Enhanced path management with validation
 function prepend_path() {
     local newpath=$1
-
-    PATH=${newpath}:${PATH}
+    
+    if [[ -z "$newpath" ]]; then
+        log_error "prepend_path: Path cannot be empty" 2>/dev/null || echo "Error: Path cannot be empty" >&2
+        return 1
+    fi
+    
+    # Check if path already exists in PATH
+    if [[ ":$PATH:" == *":$newpath:"* ]]; then
+        log_debug "Path already in PATH: $newpath" 2>/dev/null || true
+        return 0
+    fi
+    
+    # Only add if directory exists
+    if [[ -d "$newpath" ]]; then
+        PATH="$newpath:$PATH"
+        log_debug "Prepended to PATH: $newpath" 2>/dev/null || true
+    else
+        log_warn "Directory does not exist, not adding to PATH: $newpath" 2>/dev/null || echo "Warning: Directory does not exist: $newpath" >&2
+        return 1
+    fi
 }
 
 function append_path() {
     local newpath=$1
-
-    PATH=${PATH}:${newpath}
+    
+    if [[ -z "$newpath" ]]; then
+        log_error "append_path: Path cannot be empty" 2>/dev/null || echo "Error: Path cannot be empty" >&2
+        return 1
+    fi
+    
+    # Check if path already exists in PATH
+    if [[ ":$PATH:" == *":$newpath:"* ]]; then
+        log_debug "Path already in PATH: $newpath" 2>/dev/null || true
+        return 0
+    fi
+    
+    # Only add if directory exists
+    if [[ -d "$newpath" ]]; then
+        PATH="$PATH:$newpath"
+        log_debug "Appended to PATH: $newpath" 2>/dev/null || true
+    else
+        log_warn "Directory does not exist, not adding to PATH: $newpath" 2>/dev/null || echo "Warning: Directory does not exist: $newpath" >&2
+        return 1
+    fi
 }
+
+# New utility functions
+
+# Check if running as root
+function is_root() {
+    [[ $EUID -eq 0 ]]
+}
+
+# Platform detection functions (use platform library if available)
+function is_macos() {
+    if declare -f detect_os >/dev/null 2>&1; then
+        [[ "$(detect_os)" == "macos" ]]
+    else
+        [[ "$(uname -s)" == "Darwin" ]]
+    fi
+}
+
+function is_linux() {
+    if declare -f detect_os >/dev/null 2>&1; then
+        [[ "$(detect_os)" =~ ^(linux|ubuntu|debian|centos|redhat|alpine)$ ]]
+    else
+        [[ "$(uname -s)" == "Linux" ]]
+    fi
+}
+
+function is_wsl() {
+    if declare -f detect_os >/dev/null 2>&1; then
+        [[ "$(detect_os)" == "wsl" ]]
+    else
+        [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi microsoft /proc/version 2>/dev/null
+    fi
+}
+
+# Retry function with exponential backoff
+function retry() {
+    local max_attempts=$1
+    local delay=$2
+    shift 2
+    
+    local attempt=1
+    while [[ $attempt -le $max_attempts ]]; do
+        if "$@"; then
+            return 0
+        fi
+        
+        if [[ $attempt -eq $max_attempts ]]; then
+            log_error "Command failed after $max_attempts attempts: $*" 2>/dev/null || echo "Error: Command failed after $max_attempts attempts" >&2
+            return 1
+        fi
+        
+        log_warn "Attempt $attempt failed, retrying in ${delay}s..." 2>/dev/null || echo "Attempt $attempt failed, retrying in ${delay}s..." >&2
+        sleep "$delay"
+        delay=$((delay * 2))  # Exponential backoff
+        ((attempt++))
+    done
+}
+
+# Safe file operations
+function safe_backup() {
+    local file=$1
+    local backup_dir="${2:-${file}.backup}"
+    
+    if [[ -z "$file" ]]; then
+        log_error "safe_backup: File path cannot be empty" 2>/dev/null || echo "Error: File path cannot be empty" >&2
+        return 1
+    fi
+    
+    if [[ -f "$file" ]]; then
+        local timestamp=$(date +%Y%m%d_%H%M%S)
+        local backup_file="${backup_dir}.${timestamp}"
+        
+        if cp "$file" "$backup_file"; then
+            log_info "Backed up $file to $backup_file" 2>/dev/null || echo "Backed up $file to $backup_file"
+        else
+            log_error "Failed to backup $file" 2>/dev/null || echo "Error: Failed to backup $file" >&2
+            return 1
+        fi
+    fi
+}
+
+# Create directory with parents and proper permissions
+function safe_mkdir() {
+    local dir=$1
+    local mode=${2:-755}
+    
+    if [[ -z "$dir" ]]; then
+        log_error "safe_mkdir: Directory path cannot be empty" 2>/dev/null || echo "Error: Directory path cannot be empty" >&2
+        return 1
+    fi
+    
+    if [[ ! -d "$dir" ]]; then
+        if mkdir -p "$dir" && chmod "$mode" "$dir"; then
+            log_debug "Created directory: $dir" 2>/dev/null || true
+        else
+            log_error "Failed to create directory: $dir" 2>/dev/null || echo "Error: Failed to create directory: $dir" >&2
+            return 1
+        fi
+    fi
+}
+
+# Check if a string is a valid URL
+function is_url() {
+    local url=$1
+    [[ "$url" =~ ^https?:// ]]
+}
+
+# Download file with retry and validation
+function safe_download() {
+    local url=$1
+    local dest=$2
+    local max_attempts=${3:-3}
+    
+    if [[ -z "$url" || -z "$dest" ]]; then
+        log_error "safe_download: URL and destination are required" 2>/dev/null || echo "Error: URL and destination are required" >&2
+        return 1
+    fi
+    
+    if ! is_url "$url"; then
+        log_error "Invalid URL: $url" 2>/dev/null || echo "Error: Invalid URL: $url" >&2
+        return 1
+    fi
+    
+    # Create destination directory if needed
+    safe_mkdir "$(dirname "$dest")"
+    
+    # Try curl first, then wget
+    if has_cmd curl; then
+        retry "$max_attempts" 2 curl -fsSL "$url" -o "$dest"
+    elif has_cmd wget; then
+        retry "$max_attempts" 2 wget -q "$url" -O "$dest"
+    else
+        log_error "Neither curl nor wget available for download" 2>/dev/null || echo "Error: Neither curl nor wget available" >&2
+        return 1
+    fi
+}
+
+# Validate environment variables
+function require_env() {
+    local var_name=$1
+    local var_value="${!var_name}"
+    
+    if [[ -z "$var_value" ]]; then
+        log_error "Required environment variable not set: $var_name" 2>/dev/null || echo "Error: Required environment variable not set: $var_name" >&2
+        return 1
+    fi
+    
+    log_debug "Environment variable validated: $var_name" 2>/dev/null || true
+}
+
+# Clean up PATH by removing duplicates and non-existent directories
+function clean_path() {
+    local new_path=""
+    local IFS=":"
+    
+    for dir in $PATH; do
+        # Skip empty entries and duplicates
+        if [[ -n "$dir" && -d "$dir" && ":$new_path:" != *":$dir:"* ]]; then
+            if [[ -z "$new_path" ]]; then
+                new_path="$dir"
+            else
+                new_path="$new_path:$dir"
+            fi
+        fi
+    done
+    
+    PATH="$new_path"
+    log_debug "Cleaned PATH, removed duplicates and non-existent directories" 2>/dev/null || true
+}
+
+# Initialize utils
+log_debug "Utils library loaded" 2>/dev/null || true

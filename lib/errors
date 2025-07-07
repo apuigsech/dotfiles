@@ -1,0 +1,280 @@
+[[ $ERRORS_INCLUDED ]] && return
+ERRORS_INCLUDED=true
+
+# Source dependencies
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+
+# Error handling configuration
+DOTFILES_FAIL_FAST=${DOTFILES_FAIL_FAST:-false}
+DOTFILES_DEBUG=${DOTFILES_DEBUG:-false}
+DOTFILES_STRICT=${DOTFILES_STRICT:-false}
+
+# Error tracking
+ERROR_COUNT=0
+ERROR_CONTEXT=""
+ERROR_STACK=()
+
+# Set strict mode if requested
+if [[ "$DOTFILES_STRICT" == "true" ]]; then
+    set -euo pipefail
+fi
+
+# Enable debug mode if requested
+if [[ "$DOTFILES_DEBUG" == "true" ]]; then
+    set -x
+fi
+
+# Error handler function
+function on_error() {
+    local exit_code=$?
+    local line_no=$1
+    local bash_lineno=$2
+    local last_command="$3"
+    local funcstack=("${FUNCNAME[@]}")
+    
+    ((ERROR_COUNT++))
+    
+    # Log error details
+    log_error "Script failed at line $line_no with exit code $exit_code"
+    log_error "Last command: $last_command"
+    
+    if [[ -n "$ERROR_CONTEXT" ]]; then
+        log_error "Context: $ERROR_CONTEXT"
+    fi
+    
+    # Print call stack
+    log_error "Call stack:"
+    local frame=0
+    while caller $frame 2>/dev/null; do
+        ((frame++))
+    done | while read line func file; do
+        log_error "  $func() at $file:$line"
+    done
+    
+    # Store error in stack
+    ERROR_STACK+=("$exit_code:$line_no:$last_command")
+    
+    # Exit immediately if fail-fast is enabled
+    if [[ "$DOTFILES_FAIL_FAST" == "true" ]]; then
+        log_error "Fail-fast mode enabled, exiting immediately"
+        exit $exit_code
+    fi
+    
+    return $exit_code
+}
+
+# Signal handler for cleanup
+function on_exit() {
+    local exit_code=$?
+    
+    # Stop any running spinners
+    if declare -f stop_spinner >/dev/null 2>&1; then
+        stop_spinner
+    fi
+    
+    # Print error summary if there were errors
+    if [[ $ERROR_COUNT -gt 0 ]]; then
+        log_error "Installation completed with $ERROR_COUNT errors"
+        log_error "Check the log file for details: $(get_log_file 2>/dev/null || echo 'N/A')"
+    fi
+    
+    # Cleanup temporary files
+    cleanup_temp_files
+    
+    exit $exit_code
+}
+
+# Signal handler for interruption
+function on_interrupt() {
+    log_warn "Installation interrupted by user"
+    exit 130
+}
+
+# Set up error trapping
+trap 'on_error $LINENO $BASH_LINENO "$BASH_COMMAND"' ERR
+trap 'on_exit' EXIT
+trap 'on_interrupt' INT TERM
+
+# Set error context for better debugging
+function set_error_context() {
+    ERROR_CONTEXT="$1"
+    log_debug "Error context set: $ERROR_CONTEXT"
+}
+
+# Clear error context
+function clear_error_context() {
+    ERROR_CONTEXT=""
+    log_debug "Error context cleared"
+}
+
+# Run command with error context
+function run_with_context() {
+    local context="$1"
+    shift
+    
+    set_error_context "$context"
+    "$@"
+    local exit_code=$?
+    clear_error_context
+    
+    return $exit_code
+}
+
+# Check if we're in debug mode
+function is_debug_mode() {
+    [[ "$DOTFILES_DEBUG" == "true" ]] || [[ -n "${DEBUG:-}" ]]
+}
+
+# Check if we're in strict mode
+function is_strict_mode() {
+    [[ "$DOTFILES_STRICT" == "true" ]]
+}
+
+# Check if fail-fast is enabled
+function is_fail_fast() {
+    [[ "$DOTFILES_FAIL_FAST" == "true" ]]
+}
+
+# Enable debug mode
+function enable_debug() {
+    DOTFILES_DEBUG=true
+    set -x
+    log_info "Debug mode enabled"
+}
+
+# Disable debug mode
+function disable_debug() {
+    DOTFILES_DEBUG=false
+    set +x
+    log_info "Debug mode disabled"
+}
+
+# Enable strict mode
+function enable_strict() {
+    DOTFILES_STRICT=true
+    set -euo pipefail
+    log_info "Strict mode enabled"
+}
+
+# Disable strict mode
+function disable_strict() {
+    DOTFILES_STRICT=false
+    set +euo pipefail
+    log_info "Strict mode disabled"
+}
+
+# Enable fail-fast mode
+function enable_fail_fast() {
+    DOTFILES_FAIL_FAST=true
+    log_info "Fail-fast mode enabled"
+}
+
+# Disable fail-fast mode
+function disable_fail_fast() {
+    DOTFILES_FAIL_FAST=false
+    log_info "Fail-fast mode disabled"
+}
+
+# Assert function for validation
+function assert() {
+    local condition="$1"
+    local message="${2:-Assertion failed}"
+    
+    if ! eval "$condition"; then
+        log_error "Assertion failed: $message"
+        log_error "Condition: $condition"
+        return 1
+    fi
+    
+    log_debug "Assertion passed: $message"
+    return 0
+}
+
+# Require function for dependencies
+function require() {
+    local item="$1"
+    local type="${2:-command}"
+    
+    case "$type" in
+        "command")
+            if ! has_cmd "$item"; then
+                log_error "Required command not found: $item"
+                return 1
+            fi
+            ;;
+        "file")
+            if [[ ! -f "$item" ]]; then
+                log_error "Required file not found: $item"
+                return 1
+            fi
+            ;;
+        "dir"|"directory")
+            if [[ ! -d "$item" ]]; then
+                log_error "Required directory not found: $item"
+                return 1
+            fi
+            ;;
+        "env"|"environment")
+            if [[ -z "${!item:-}" ]]; then
+                log_error "Required environment variable not set: $item"
+                return 1
+            fi
+            ;;
+        *)
+            log_error "Unknown requirement type: $type"
+            return 1
+            ;;
+    esac
+    
+    log_debug "Requirement satisfied: $item ($type)"
+    return 0
+}
+
+# Temporary file cleanup
+TEMP_FILES=()
+
+function create_temp_file() {
+    local prefix="${1:-dotfiles}"
+    local temp_file
+    
+    temp_file=$(mktemp -t "${prefix}.XXXXXX")
+    TEMP_FILES+=("$temp_file")
+    echo "$temp_file"
+}
+
+function cleanup_temp_files() {
+    if [[ ${#TEMP_FILES[@]} -gt 0 ]]; then
+        log_debug "Cleaning up ${#TEMP_FILES[@]} temporary files"
+        for temp_file in "${TEMP_FILES[@]}"; do
+            if [[ -f "$temp_file" ]]; then
+                rm -f "$temp_file"
+                log_debug "Removed temporary file: $temp_file"
+            fi
+        done
+        TEMP_FILES=()
+    fi
+}
+
+# Get error statistics
+function get_error_count() {
+    echo $ERROR_COUNT
+}
+
+function get_error_stack() {
+    printf '%s\n' "${ERROR_STACK[@]}"
+}
+
+# Print error handling configuration
+function print_error_config() {
+    echo "Error Handling Configuration:"
+    echo "  Debug mode: $DOTFILES_DEBUG"
+    echo "  Strict mode: $DOTFILES_STRICT"
+    echo "  Fail-fast: $DOTFILES_FAIL_FAST"
+    echo "  Error count: $ERROR_COUNT"
+}
+
+# Initialize error handling
+log_debug "Error handling initialized"
+log_debug "Debug mode: $DOTFILES_DEBUG"
+log_debug "Strict mode: $DOTFILES_STRICT"
+log_debug "Fail-fast: $DOTFILES_FAIL_FAST" 

@@ -1,13 +1,261 @@
 [[ $DOTBOT_INCLUDED ]] && return
 DOTBOT_INCLUDED=true
 
-DOTBOT_BIN="${BASE_DIR}/dotbot/bin/dotbot"
+# Source dependencies
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+source "${BASE_DIR}/lib/utils" 2>/dev/null || true
 
-function dotbot() {
-    if [[ ! -x "$DOTBOT_BIN" ]]; then
-        echo "Error: $DOTBOT_BIN does not exist or is not executable."
+# Dotbot configuration
+DOTBOT_BIN="${BASE_DIR}/dotbot/bin/dotbot"
+DOTBOT_CONFIG_DIR="${BASE_DIR}"
+DOTBOT_DEFAULT_CONFIG="install.conf.yaml"
+
+# Validate Dotbot installation
+function dotbot_validate() {
+    log_debug "Validating Dotbot installation..."
+    
+    if [[ ! -f "$DOTBOT_BIN" ]]; then
+        log_error "Dotbot binary not found: $DOTBOT_BIN"
         return 1
     fi
-
-    "${DOTBOT_BIN}" -Q "$@"
+    
+    if [[ ! -x "$DOTBOT_BIN" ]]; then
+        log_error "Dotbot binary is not executable: $DOTBOT_BIN"
+        return 1
+    fi
+    
+    # Check Python availability
+    if ! has_cmd python3 && ! has_cmd python; then
+        log_error "Python is required for Dotbot but not found"
+        return 1
+    fi
+    
+    log_debug "Dotbot validation completed successfully"
+    return 0
 }
+
+# Check if a config file exists and is readable
+function dotbot_validate_config() {
+    local config_file=$1
+    
+    if [[ -z "$config_file" ]]; then
+        log_error "Config file path cannot be empty"
+        return 1
+    fi
+    
+    # Convert relative path to absolute
+    if [[ ! "$config_file" =~ ^/ ]]; then
+        config_file="${DOTBOT_CONFIG_DIR}/${config_file}"
+    fi
+    
+    if [[ ! -f "$config_file" ]]; then
+        log_error "Dotbot config file not found: $config_file"
+        return 1
+    fi
+    
+    if [[ ! -r "$config_file" ]]; then
+        log_error "Dotbot config file not readable: $config_file"
+        return 1
+    fi
+    
+    log_debug "Config file validated: $config_file"
+    return 0
+}
+
+# Enhanced dotbot function with better error handling
+function dotbot() {
+    local config_file=""
+    local dotbot_args=()
+    local verbose=false
+    local dry_run=false
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -c|--config-file)
+                config_file="$2"
+                shift 2
+                ;;
+            -v|--verbose)
+                verbose=true
+                dotbot_args+=("$1")
+                shift
+                ;;
+            -n|--dry-run)
+                dry_run=true
+                dotbot_args+=("$1")
+                shift
+                ;;
+            -h|--help)
+                dotbot_help
+                return 0
+                ;;
+            *)
+                dotbot_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+    
+    # Use default config if none specified
+    if [[ -z "$config_file" ]]; then
+        config_file="$DOTBOT_DEFAULT_CONFIG"
+    fi
+    
+    # Validate Dotbot installation
+    if ! dotbot_validate; then
+        return 1
+    fi
+    
+    # Validate config file
+    if ! dotbot_validate_config "$config_file"; then
+        return 1
+    fi
+    
+    # Convert relative path to absolute for dotbot
+    if [[ ! "$config_file" =~ ^/ ]]; then
+        config_file="${DOTBOT_CONFIG_DIR}/${config_file}"
+    fi
+    
+    # Log the operation
+    if [[ "$dry_run" == true ]]; then
+        log_info "Running Dotbot in dry-run mode with config: $config_file"
+    else
+        log_info "Running Dotbot with config: $config_file"
+    fi
+    
+    # Execute dotbot
+    local exit_code
+    if [[ "$verbose" == true ]]; then
+        log_debug "Executing: $DOTBOT_BIN -c $config_file ${dotbot_args[*]}"
+        "$DOTBOT_BIN" -c "$config_file" "${dotbot_args[@]}"
+        exit_code=$?
+    else
+        # Run quietly by default
+        "$DOTBOT_BIN" -Q -c "$config_file" "${dotbot_args[@]}"
+        exit_code=$?
+    fi
+    
+    # Log results
+    if [[ $exit_code -eq 0 ]]; then
+        log_info "Dotbot completed successfully"
+    else
+        log_error "Dotbot failed with exit code: $exit_code"
+    fi
+    
+    return $exit_code
+}
+
+# Run dotbot with a specific config file
+function dotbot_run_config() {
+    local config_file=$1
+    shift
+    
+    if [[ -z "$config_file" ]]; then
+        log_error "Config file is required"
+        return 1
+    fi
+    
+    dotbot -c "$config_file" "$@"
+}
+
+# Run dotbot with multiple config files
+function dotbot_run_configs() {
+    local configs=("$@")
+    local success_count=0
+    local fail_count=0
+    
+    if [[ ${#configs[@]} -eq 0 ]]; then
+        log_error "At least one config file is required"
+        return 1
+    fi
+    
+    log_info "Running Dotbot with ${#configs[@]} config files"
+    
+    for config in "${configs[@]}"; do
+        if dotbot_run_config "$config"; then
+            ((success_count++))
+            log_info "Config completed successfully: $config"
+        else
+            ((fail_count++))
+            log_error "Config failed: $config"
+        fi
+    done
+    
+    log_info "Dotbot batch completed: $success_count successful, $fail_count failed"
+    
+    if [[ $fail_count -gt 0 ]]; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Get Dotbot version
+function dotbot_version() {
+    if ! dotbot_validate; then
+        return 1
+    fi
+    
+    "$DOTBOT_BIN" --version
+}
+
+# Show Dotbot help
+function dotbot_help() {
+    cat << 'EOF'
+Dotbot Wrapper Functions
+
+Usage:
+    dotbot [OPTIONS] [DOTBOT_OPTIONS]
+    dotbot_run_config <config_file> [DOTBOT_OPTIONS]
+    dotbot_run_configs <config1> [config2] [config3] ...
+
+Options:
+    -c, --config-file FILE  Use specific config file
+    -v, --verbose          Enable verbose output
+    -n, --dry-run          Perform a dry run
+    -h, --help             Show this help message
+
+Examples:
+    dotbot                              # Use default config
+    dotbot -c setup.dotbot             # Use specific config
+    dotbot -v -n                       # Verbose dry run
+    dotbot_run_config plugin.dotbot    # Run specific config
+    dotbot_run_configs *.dotbot        # Run multiple configs
+
+Environment Variables:
+    DOTBOT_BIN            Path to dotbot binary
+    DOTBOT_CONFIG_DIR     Directory for config files
+    DOTBOT_DEFAULT_CONFIG Default config file name
+
+EOF
+}
+
+# Test Dotbot installation
+function dotbot_test() {
+    log_info "Testing Dotbot installation..."
+    
+    if ! dotbot_validate; then
+        log_error "Dotbot validation failed"
+        return 1
+    fi
+    
+    log_info "Dotbot binary: $DOTBOT_BIN"
+    log_info "Config directory: $DOTBOT_CONFIG_DIR"
+    log_info "Default config: $DOTBOT_DEFAULT_CONFIG"
+    
+    if dotbot_version; then
+        log_info "Dotbot test completed successfully"
+        return 0
+    else
+        log_error "Dotbot test failed"
+        return 1
+    fi
+}
+
+# Initialize Dotbot
+if dotbot_validate; then
+    log_debug "Dotbot library loaded - binary: $DOTBOT_BIN"
+else
+    log_warn "Dotbot library loaded but validation failed"
+fi

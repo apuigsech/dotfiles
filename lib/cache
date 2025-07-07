@@ -1,0 +1,276 @@
+[[ $CACHE_INCLUDED ]] && return
+CACHE_INCLUDED=true
+
+# Source dependencies
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+
+# Cache configuration
+CACHE_DIR="${HOME}/.dotfiles/cache"
+CACHE_TTL=${DOTFILES_CACHE_TTL:-300}  # 5 minutes default
+CACHE_ENABLED=${DOTFILES_CACHE_ENABLED:-true}
+
+# Create cache directory
+mkdir -p "$CACHE_DIR"
+
+# Cache file naming
+function _cache_key() {
+    local key="$1"
+    # Create a safe filename from the key
+    echo "$key" | sed 's/[^a-zA-Z0-9._-]/_/g'
+}
+
+function _cache_file() {
+    local key="$1"
+    echo "$CACHE_DIR/$(_cache_key "$key").cache"
+}
+
+function _cache_timestamp_file() {
+    local key="$1"
+    echo "$CACHE_DIR/$(_cache_key "$key").timestamp"
+}
+
+# Check if cache is enabled
+function cache_enabled() {
+    [[ "$CACHE_ENABLED" == "true" ]]
+}
+
+# Check if cache entry exists and is valid
+function cache_valid() {
+    local key="$1"
+    local cache_file=$(_cache_file "$key")
+    local timestamp_file=$(_cache_timestamp_file "$key")
+    
+    if ! cache_enabled; then
+        return 1
+    fi
+    
+    if [[ ! -f "$cache_file" || ! -f "$timestamp_file" ]]; then
+        return 1
+    fi
+    
+    local cache_time
+    cache_time=$(cat "$timestamp_file" 2>/dev/null || echo "0")
+    local current_time=$(date +%s)
+    
+    if [[ $((current_time - cache_time)) -gt $CACHE_TTL ]]; then
+        log_debug "Cache expired for key: $key"
+        return 1
+    fi
+    
+    log_debug "Cache valid for key: $key"
+    return 0
+}
+
+# Get cached value
+function cache_get() {
+    local key="$1"
+    local cache_file=$(_cache_file "$key")
+    
+    if cache_valid "$key"; then
+        log_debug "Cache hit for key: $key"
+        cat "$cache_file"
+        return 0
+    else
+        log_debug "Cache miss for key: $key"
+        return 1
+    fi
+}
+
+# Set cached value
+function cache_set() {
+    local key="$1"
+    local value="$2"
+    local cache_file=$(_cache_file "$key")
+    local timestamp_file=$(_cache_timestamp_file "$key")
+    
+    if ! cache_enabled; then
+        return 0
+    fi
+    
+    echo "$value" > "$cache_file"
+    date +%s > "$timestamp_file"
+    log_debug "Cached value for key: $key"
+}
+
+# Clear specific cache entry
+function cache_clear() {
+    local key="$1"
+    local cache_file=$(_cache_file "$key")
+    local timestamp_file=$(_cache_timestamp_file "$key")
+    
+    rm -f "$cache_file" "$timestamp_file"
+    log_debug "Cleared cache for key: $key"
+}
+
+# Clear all cache entries
+function cache_clear_all() {
+    if [[ -d "$CACHE_DIR" ]]; then
+        rm -f "$CACHE_DIR"/*.cache "$CACHE_DIR"/*.timestamp
+        log_info "Cleared all cache entries"
+    fi
+}
+
+# Cache command execution
+function cache_cmd() {
+    local key="$1"
+    shift
+    
+    local cached_result
+    if cached_result=$(cache_get "$key"); then
+        echo "$cached_result"
+        return 0
+    fi
+    
+    local result
+    if result=$("$@" 2>&1); then
+        cache_set "$key" "$result"
+        echo "$result"
+        return 0
+    else
+        local exit_code=$?
+        log_debug "Command failed, not caching: $*"
+        return $exit_code
+    fi
+}
+
+# Cached system information functions
+function cache_uname() {
+    cache_cmd "uname" uname -s
+}
+
+function cache_arch() {
+    cache_cmd "arch" uname -m
+}
+
+function cache_hostname() {
+    cache_cmd "hostname" hostname -s
+}
+
+function cache_whoami() {
+    cache_cmd "whoami" whoami
+}
+
+# Cached command existence checks
+function cache_has_cmd() {
+    local cmd="$1"
+    local key="has_cmd_$cmd"
+    
+    if cache_get "$key" >/dev/null 2>&1; then
+        local cached_result
+        cached_result=$(cache_get "$key")
+        [[ "$cached_result" == "true" ]]
+        return $?
+    fi
+    
+    if command -v "$cmd" >/dev/null 2>&1; then
+        cache_set "$key" "true"
+        return 0
+    else
+        cache_set "$key" "false"
+        return 1
+    fi
+}
+
+# Cached platform detection
+function cache_is_macos() {
+    local key="is_macos"
+    
+    if cache_get "$key" >/dev/null 2>&1; then
+        local cached_result
+        cached_result=$(cache_get "$key")
+        [[ "$cached_result" == "true" ]]
+        return $?
+    fi
+    
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        cache_set "$key" "true"
+        return 0
+    else
+        cache_set "$key" "false"
+        return 1
+    fi
+}
+
+function cache_is_linux() {
+    local key="is_linux"
+    
+    if cache_get "$key" >/dev/null 2>&1; then
+        local cached_result
+        cached_result=$(cache_get "$key")
+        [[ "$cached_result" == "true" ]]
+        return $?
+    fi
+    
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        cache_set "$key" "true"
+        return 0
+    else
+        cache_set "$key" "false"
+        return 1
+    fi
+}
+
+# Cache statistics
+function cache_stats() {
+    local total_entries=0
+    local expired_entries=0
+    local cache_size=0
+    
+    if [[ -d "$CACHE_DIR" ]]; then
+        total_entries=$(find "$CACHE_DIR" -name "*.cache" | wc -l)
+        cache_size=$(du -sh "$CACHE_DIR" 2>/dev/null | cut -f1)
+        
+        # Count expired entries
+        local current_time=$(date +%s)
+        for timestamp_file in "$CACHE_DIR"/*.timestamp; do
+            if [[ -f "$timestamp_file" ]]; then
+                local cache_time
+                cache_time=$(cat "$timestamp_file" 2>/dev/null || echo "0")
+                if [[ $((current_time - cache_time)) -gt $CACHE_TTL ]]; then
+                    ((expired_entries++))
+                fi
+            fi
+        done
+    fi
+    
+    echo "Cache Statistics:"
+    echo "  Directory: $CACHE_DIR"
+    echo "  Total entries: $total_entries"
+    echo "  Expired entries: $expired_entries"
+    echo "  Cache size: $cache_size"
+    echo "  TTL: ${CACHE_TTL}s"
+    echo "  Enabled: $CACHE_ENABLED"
+}
+
+# Clean up expired cache entries
+function cache_cleanup() {
+    if [[ ! -d "$CACHE_DIR" ]]; then
+        return 0
+    fi
+    
+    local current_time=$(date +%s)
+    local cleaned_count=0
+    
+    for timestamp_file in "$CACHE_DIR"/*.timestamp; do
+        if [[ -f "$timestamp_file" ]]; then
+            local cache_time
+            cache_time=$(cat "$timestamp_file" 2>/dev/null || echo "0")
+            if [[ $((current_time - cache_time)) -gt $CACHE_TTL ]]; then
+                local key
+                key=$(basename "$timestamp_file" .timestamp)
+                cache_clear "$key"
+                ((cleaned_count++))
+            fi
+        fi
+    done
+    
+    if [[ $cleaned_count -gt 0 ]]; then
+        log_info "Cleaned up $cleaned_count expired cache entries"
+    fi
+}
+
+# Initialize cache
+log_debug "Cache system initialized - Directory: $CACHE_DIR, TTL: ${CACHE_TTL}s"
+
+# Clean up expired entries on load
+cache_cleanup 

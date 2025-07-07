@@ -1,0 +1,426 @@
+[[ $SECURITY_INCLUDED ]] && return
+SECURITY_INCLUDED=true
+
+# Source dependencies
+source "${BASE_DIR}/lib/logger" 2>/dev/null || true
+
+# Security configuration
+SECURITY_STRICT=${DOTFILES_SECURITY_STRICT:-true}
+SECURITY_TEMP_DIR="${TMPDIR:-/tmp}"
+SECURITY_MAX_FILE_SIZE=${DOTFILES_MAX_FILE_SIZE:-104857600}  # 100MB default
+
+# Input sanitization functions
+function sanitize_filename() {
+    local filename="$1"
+    
+    if [[ -z "$filename" ]]; then
+        log_error "Filename cannot be empty"
+        return 1
+    fi
+    
+    # Remove dangerous characters and patterns
+    local sanitized
+    sanitized=$(echo "$filename" | sed 's/[^a-zA-Z0-9._-]/_/g' | sed 's/^[.-]/_/' | sed 's/[.-]$/_/')
+    
+    # Prevent directory traversal
+    sanitized=$(echo "$sanitized" | sed 's/\.\.\/*//g')
+    
+    # Limit length
+    if [[ ${#sanitized} -gt 255 ]]; then
+        sanitized="${sanitized:0:255}"
+    fi
+    
+    echo "$sanitized"
+}
+
+function sanitize_path() {
+    local path="$1"
+    local allow_absolute=${2:-false}
+    
+    if [[ -z "$path" ]]; then
+        log_error "Path cannot be empty"
+        return 1
+    fi
+    
+    # Resolve path to prevent directory traversal
+    local resolved_path
+    if [[ "$path" =~ ^/ ]]; then
+        if [[ "$allow_absolute" != "true" ]]; then
+            log_error "Absolute paths not allowed: $path"
+            return 1
+        fi
+        resolved_path=$(realpath -m "$path" 2>/dev/null || echo "$path")
+    else
+        resolved_path=$(realpath -m "./$path" 2>/dev/null || echo "./$path")
+    fi
+    
+    # Check for dangerous patterns
+    if [[ "$resolved_path" =~ \.\./|/\.\. ]]; then
+        log_error "Directory traversal detected: $path"
+        return 1
+    fi
+    
+    echo "$resolved_path"
+}
+
+function sanitize_command() {
+    local cmd="$1"
+    
+    if [[ -z "$cmd" ]]; then
+        log_error "Command cannot be empty"
+        return 1
+    fi
+    
+    # Check for dangerous characters
+    if [[ "$cmd" == *";"* || "$cmd" == *"&"* || "$cmd" == *"|"* || "$cmd" == *"\`"* || "$cmd" == *"$"* || "$cmd" == *"("* || "$cmd" == *")"* ]]; then
+        log_error "Dangerous characters in command: $cmd"
+        return 1
+    fi
+    
+    # Whitelist approach - only allow alphanumeric, dash, underscore, slash, dot
+    if [[ ! "$cmd" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+        log_error "Command contains invalid characters: $cmd"
+        return 1
+    fi
+    
+    echo "$cmd"
+}
+
+function sanitize_url() {
+    local url="$1"
+    
+    if [[ -z "$url" ]]; then
+        log_error "URL cannot be empty"
+        return 1
+    fi
+    
+    # Only allow HTTP/HTTPS URLs
+    if [[ ! "$url" =~ ^https?:// ]]; then
+        log_error "Only HTTP/HTTPS URLs are allowed: $url"
+        return 1
+    fi
+    
+    # Check for dangerous patterns
+    if [[ "$url" == *"<"* || "$url" == *">"* || "$url" == *"\""* || "$url" == *"'"* || "$url" == *"\`"* ]]; then
+        log_error "Dangerous characters in URL: $url"
+        return 1
+    fi
+    
+    echo "$url"
+}
+
+# Secure file operations
+function secure_create_temp() {
+    local prefix="${1:-dotfiles}"
+    local suffix="${2:-}"
+    
+    # Use secure temp directory
+    local temp_dir="$SECURITY_TEMP_DIR"
+    if [[ ! -d "$temp_dir" ]]; then
+        log_error "Temp directory does not exist: $temp_dir"
+        return 1
+    fi
+    
+    # Create temp file with restrictive permissions
+    local temp_file
+    temp_file=$(mktemp -t "${prefix}.XXXXXX${suffix}")
+    
+    if [[ ! -f "$temp_file" ]]; then
+        log_error "Failed to create temp file"
+        return 1
+    fi
+    
+    # Set restrictive permissions
+    chmod 600 "$temp_file"
+    
+    log_debug "Created secure temp file: $temp_file"
+    echo "$temp_file"
+}
+
+function secure_download() {
+    local url="$1"
+    local dest="$2"
+    local max_size="${3:-$SECURITY_MAX_FILE_SIZE}"
+    
+    # Sanitize inputs
+    url=$(sanitize_url "$url") || return 1
+    dest=$(sanitize_path "$dest" true) || return 1
+    
+    # Create secure temp file
+    local temp_file
+    temp_file=$(secure_create_temp "download") || return 1
+    
+    # Download with size limit
+    if has_cmd curl; then
+        if ! curl -fsSL --max-filesize "$max_size" "$url" -o "$temp_file"; then
+            rm -f "$temp_file"
+            log_error "Download failed: $url"
+            return 1
+        fi
+    elif has_cmd wget; then
+        if ! wget -q --max-redirect=3 --timeout=30 "$url" -O "$temp_file"; then
+            rm -f "$temp_file"
+            log_error "Download failed: $url"
+            return 1
+        fi
+        
+        # Check file size
+        local file_size
+        file_size=$(stat -f%z "$temp_file" 2>/dev/null || stat -c%s "$temp_file" 2>/dev/null || echo "0")
+        if [[ $file_size -gt $max_size ]]; then
+            rm -f "$temp_file"
+            log_error "Downloaded file too large: $file_size bytes"
+            return 1
+        fi
+    else
+        rm -f "$temp_file"
+        log_error "No download tool available"
+        return 1
+    fi
+    
+    # Verify download
+    if [[ ! -s "$temp_file" ]]; then
+        rm -f "$temp_file"
+        log_error "Downloaded file is empty"
+        return 1
+    fi
+    
+    # Move to destination
+    if ! mv "$temp_file" "$dest"; then
+        rm -f "$temp_file"
+        log_error "Failed to move file to destination: $dest"
+        return 1
+    fi
+    
+    log_info "Securely downloaded: $url -> $dest"
+    return 0
+}
+
+function secure_copy() {
+    local src="$1"
+    local dest="$2"
+    
+    # Sanitize paths
+    src=$(sanitize_path "$src" true) || return 1
+    dest=$(sanitize_path "$dest" true) || return 1
+    
+    # Verify source exists and is readable
+    if [[ ! -f "$src" ]]; then
+        log_error "Source file does not exist: $src"
+        return 1
+    fi
+    
+    if [[ ! -r "$src" ]]; then
+        log_error "Source file is not readable: $src"
+        return 1
+    fi
+    
+    # Check file size
+    local file_size
+    file_size=$(stat -f%z "$src" 2>/dev/null || stat -c%s "$src" 2>/dev/null || echo "0")
+    if [[ $file_size -gt $SECURITY_MAX_FILE_SIZE ]]; then
+        log_error "Source file too large: $file_size bytes"
+        return 1
+    fi
+    
+    # Create destination directory if needed
+    local dest_dir
+    dest_dir=$(dirname "$dest")
+    if [[ ! -d "$dest_dir" ]]; then
+        if ! mkdir -p "$dest_dir"; then
+            log_error "Failed to create destination directory: $dest_dir"
+            return 1
+        fi
+    fi
+    
+    # Copy with verification
+    if ! cp "$src" "$dest"; then
+        log_error "Failed to copy file: $src -> $dest"
+        return 1
+    fi
+    
+    # Set appropriate permissions
+    chmod 644 "$dest"
+    
+    log_debug "Securely copied: $src -> $dest"
+    return 0
+}
+
+# Security validation functions
+function validate_permissions() {
+    local file="$1"
+    local expected_perms="$2"
+    
+    if [[ ! -f "$file" ]]; then
+        log_error "File does not exist: $file"
+        return 1
+    fi
+    
+    local actual_perms
+    actual_perms=$(stat -f%Mp%Lp "$file" 2>/dev/null || stat -c%a "$file" 2>/dev/null)
+    
+    if [[ "$actual_perms" != "$expected_perms" ]]; then
+        log_warn "File permissions mismatch: $file (expected: $expected_perms, actual: $actual_perms)"
+        return 1
+    fi
+    
+    return 0
+}
+
+function validate_ownership() {
+    local file="$1"
+    local expected_user="${2:-$USER}"
+    
+    if [[ ! -f "$file" ]]; then
+        log_error "File does not exist: $file"
+        return 1
+    fi
+    
+    local actual_user
+    actual_user=$(stat -f%Su "$file" 2>/dev/null || stat -c%U "$file" 2>/dev/null)
+    
+    if [[ "$actual_user" != "$expected_user" ]]; then
+        log_warn "File ownership mismatch: $file (expected: $expected_user, actual: $actual_user)"
+        return 1
+    fi
+    
+    return 0
+}
+
+function validate_file_integrity() {
+    local file="$1"
+    local expected_hash="$2"
+    local hash_type="${3:-sha256}"
+    
+    if [[ ! -f "$file" ]]; then
+        log_error "File does not exist: $file"
+        return 1
+    fi
+    
+    local actual_hash
+    case "$hash_type" in
+        sha256)
+            actual_hash=$(shasum -a 256 "$file" 2>/dev/null | cut -d' ' -f1)
+            ;;
+        sha1)
+            actual_hash=$(shasum -a 1 "$file" 2>/dev/null | cut -d' ' -f1)
+            ;;
+        md5)
+            actual_hash=$(md5sum "$file" 2>/dev/null | cut -d' ' -f1)
+            ;;
+        *)
+            log_error "Unsupported hash type: $hash_type"
+            return 1
+            ;;
+    esac
+    
+    if [[ "$actual_hash" != "$expected_hash" ]]; then
+        log_error "File integrity check failed: $file"
+        log_error "Expected: $expected_hash"
+        log_error "Actual: $actual_hash"
+        return 1
+    fi
+    
+    log_debug "File integrity verified: $file"
+    return 0
+}
+
+# Security audit functions
+function audit_permissions() {
+    local dir="$1"
+    local issues=0
+    
+    if [[ ! -d "$dir" ]]; then
+        log_error "Directory does not exist: $dir"
+        return 1
+    fi
+    
+    log_info "Auditing permissions in: $dir"
+    
+    # Check for world-writable files
+    while IFS= read -r -d '' file; do
+        log_warn "World-writable file found: $file"
+        ((issues++))
+    done < <(find "$dir" -type f -perm -002 -print0 2>/dev/null)
+    
+    # Check for SUID/SGID files
+    while IFS= read -r -d '' file; do
+        log_warn "SUID/SGID file found: $file"
+        ((issues++))
+    done < <(find "$dir" -type f \( -perm -4000 -o -perm -2000 \) -print0 2>/dev/null)
+    
+    if [[ $issues -eq 0 ]]; then
+        log_info "No permission issues found"
+    else
+        log_warn "Found $issues permission issues"
+    fi
+    
+    return $issues
+}
+
+function audit_file_sizes() {
+    local dir="$1"
+    local max_size="${2:-$SECURITY_MAX_FILE_SIZE}"
+    local issues=0
+    
+    if [[ ! -d "$dir" ]]; then
+        log_error "Directory does not exist: $dir"
+        return 1
+    fi
+    
+    log_info "Auditing file sizes in: $dir (max: $max_size bytes)"
+    
+    while IFS= read -r -d '' file; do
+        local file_size
+        file_size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0")
+        if [[ $file_size -gt $max_size ]]; then
+            log_warn "Large file found: $file ($file_size bytes)"
+            ((issues++))
+        fi
+    done < <(find "$dir" -type f -print0 2>/dev/null)
+    
+    if [[ $issues -eq 0 ]]; then
+        log_info "No oversized files found"
+    else
+        log_warn "Found $issues oversized files"
+    fi
+    
+    return $issues
+}
+
+# Secure environment functions
+function secure_environment() {
+    # Clear potentially dangerous environment variables
+    unset IFS
+    
+    # Set secure PATH
+    export PATH="/usr/local/bin:/usr/bin:/bin"
+    
+    # Set secure umask
+    umask 022
+    
+    # Disable core dumps
+    ulimit -c 0
+    
+    log_debug "Environment secured"
+}
+
+function check_running_as_root() {
+    if [[ $EUID -eq 0 ]]; then
+        if [[ "$SECURITY_STRICT" == "true" ]]; then
+            log_error "Running as root is not allowed in strict security mode"
+            return 1
+        else
+            log_warn "Running as root - this is not recommended"
+        fi
+    fi
+    return 0
+}
+
+# Initialize security
+log_debug "Security library initialized"
+log_debug "Strict mode: $SECURITY_STRICT"
+log_debug "Max file size: $SECURITY_MAX_FILE_SIZE bytes"
+
+# Check if running as root
+check_running_as_root 

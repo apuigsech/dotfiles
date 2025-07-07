@@ -1,0 +1,667 @@
+#!/usr/bin/env bash
+
+# Dotfiles Management Command
+# Provides a unified interface for managing dotfiles installation, bootstrapping, and status
+
+set -e
+
+# Get script directory and change to it
+BASE_DIR=$(dirname $(realpath $0))
+cd "${BASE_DIR}"
+
+# Source enhanced libraries
+source lib/logger
+source lib/errors
+source lib/progress
+source lib/utils
+source lib/dotbot
+source lib/brew
+
+# Configuration
+DOTFILES_PLUGINS=(brew shell zsh direnv hammerspoon configs bluereset renicer cursor)
+DOTBOT_DIR="dotbot"
+CONFIG="install.conf.yaml"
+
+# Version information
+VERSION="1.0.0"
+
+# Show help message
+function show_help() {
+    cat << EOF
+Dotfiles Management Tool v${VERSION}
+
+Usage: ./dotfiles <command> [options]
+
+Commands:
+    install     Install basic dotfiles configuration using dotbot
+    bootstrap   Full installation of all plugins and configurations
+    status      Check installation status of plugins and file links
+    help        Show this help message
+
+Options:
+    --debug     Enable debug mode with verbose output
+    --strict    Enable strict mode (exit on any error)
+    --fail-fast Exit immediately on first error
+    --verbose   Enable verbose logging
+    --quiet     Only show errors
+    --help      Show help for specific command
+
+Examples:
+    ./dotfiles install              # Basic dotfiles installation
+    ./dotfiles bootstrap --verbose  # Full setup with verbose output
+    ./dotfiles status               # Check current status
+    ./dotfiles help bootstrap       # Show help for bootstrap command
+
+Environment Variables:
+    DOTFILES_DEBUG      Enable debug mode (true/false)
+    DOTFILES_STRICT     Enable strict mode (true/false)
+    DOTFILES_FAIL_FAST  Enable fail-fast mode (true/false)
+    DOTFILES_LOG_LEVEL  Set log level (debug/info/warn/error)
+
+EOF
+}
+
+# Show command-specific help
+function show_command_help() {
+    local command=$1
+
+    case $command in
+        install)
+            cat << EOF
+dotfiles install - Install basic dotfiles configuration
+
+Usage: ./dotfiles install [options]
+
+This command performs a basic dotfiles installation using dotbot:
+- Updates git submodules
+- Links essential configuration files
+- Runs basic setup tasks
+
+Options:
+    --help      Show this help message
+    --debug     Enable debug output
+    --verbose   Enable verbose logging
+    --quiet     Only show errors
+
+Examples:
+    ./dotfiles install
+    ./dotfiles install --verbose
+
+EOF
+            ;;
+        bootstrap)
+            cat << EOF
+dotfiles bootstrap - Full installation of all plugins and configurations
+
+Usage: ./dotfiles bootstrap [options]
+
+This command performs a complete dotfiles setup:
+- Installs all plugins: ${DOTFILES_PLUGINS[*]}
+- Runs setup.sh scripts where available
+- Processes dotbot configurations
+- Provides comprehensive error handling and logging
+
+Options:
+    --help      Show this help message
+    --debug     Enable debug mode with verbose output
+    --strict    Enable strict mode (exit on any error)
+    --fail-fast Exit immediately on first error
+    --verbose   Enable verbose logging
+    --quiet     Only show errors
+
+Examples:
+    ./dotfiles bootstrap
+    ./dotfiles bootstrap --debug
+    ./dotfiles bootstrap --strict --verbose
+
+EOF
+            ;;
+        status)
+            cat << EOF
+dotfiles status - Check installation status
+
+Usage: ./dotfiles status [options]
+
+This command checks the current installation status:
+- Verifies plugin installation status
+- Checks file link integrity
+- Reports missing dependencies
+- Shows configuration health
+
+Options:
+    --help      Show this help message
+    --verbose   Show detailed status information
+    --quiet     Only show summary
+
+Examples:
+    ./dotfiles status
+    ./dotfiles status --verbose
+
+EOF
+            ;;
+        *)
+            echo "Unknown command: $command"
+            echo "Use './dotfiles help' for available commands"
+            exit 1
+            ;;
+    esac
+}
+
+# Parse global arguments
+function parse_global_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --debug)
+                enable_debug
+                shift
+                ;;
+            --strict)
+                enable_strict
+                shift
+                ;;
+            --fail-fast)
+                enable_fail_fast
+                shift
+                ;;
+            --verbose)
+                set_log_level debug
+                shift
+                ;;
+            --quiet)
+                set_log_level error
+                shift
+                ;;
+            --help)
+                return 0
+                ;;
+            *)
+                # Return remaining args for command-specific parsing
+                return 0
+                ;;
+        esac
+    done
+}
+
+# Install command - Basic dotfiles installation
+function cmd_install() {
+    local args=("$@")
+
+    # Parse command-specific arguments
+    local show_help=false
+    for arg in "${args[@]}"; do
+        case $arg in
+            --help)
+                show_help=true
+                ;;
+        esac
+    done
+
+    if [[ "$show_help" == true ]]; then
+        show_command_help install
+        return 0
+    fi
+
+    log_info "Starting basic dotfiles installation"
+
+    # Update git submodules
+    log_info "Updating git submodules..."
+    if ! git -C "${DOTBOT_DIR}" submodule sync --quiet --recursive; then
+        log_error "Failed to sync git submodules"
+        return 1
+    fi
+
+    if ! git submodule update --init --recursive "${DOTBOT_DIR}"; then
+        log_error "Failed to update git submodules"
+        return 1
+    fi
+
+         # Run dotbot with install configuration
+     log_info "Running dotbot configuration..."
+     if ! "${DOTBOT_BIN}" -d "${BASE_DIR}" -c "${CONFIG}" "${args[@]}"; then
+         log_error "Dotbot configuration failed"
+         return 1
+     fi
+
+    log_info "Basic dotfiles installation completed successfully"
+    return 0
+}
+
+# Bootstrap command - Full installation
+function cmd_bootstrap() {
+    local args=("$@")
+
+    # Parse command-specific arguments
+    local show_help=false
+    for arg in "${args[@]}"; do
+        case $arg in
+            --help)
+                show_help=true
+                ;;
+        esac
+    done
+
+    if [[ "$show_help" == true ]]; then
+        show_command_help bootstrap
+        return 0
+    fi
+
+    log_info "Starting full dotfiles bootstrap"
+    log_info "Base directory: $BASE_DIR"
+    log_info "Plugins to install: ${DOTFILES_PLUGINS[*]}"
+
+    # Validate environment
+    if ! validate_environment; then
+        log_error "Environment validation failed"
+        return 1
+    fi
+
+    # Initialize progress tracking
+    init_progress ${#DOTFILES_PLUGINS[@]}
+
+    local failed_plugins=()
+
+    # Process each plugin
+    for plugin in "${DOTFILES_PLUGINS[@]}"; do
+        if run_plugin "$plugin"; then
+            log_info "✓ Plugin installed: $plugin"
+        else
+            log_error "✗ Plugin failed: $plugin"
+            failed_plugins+=("$plugin")
+
+            # Exit immediately if fail-fast is enabled
+            if is_fail_fast; then
+                log_error "Fail-fast mode enabled, stopping installation"
+                break
+            fi
+        fi
+
+        update_progress
+    done
+
+    finish_progress
+
+    # Print summary
+    print_progress_summary
+
+    if [[ ${#failed_plugins[@]} -gt 0 ]]; then
+        log_error "Failed plugins: ${failed_plugins[*]}"
+        log_error "Check the log file for details: $(get_log_file)"
+        generate_report
+        return 1
+    else
+        log_info "All plugins installed successfully!"
+        generate_report
+        return 0
+    fi
+}
+
+# Status command - Check installation status
+function cmd_status() {
+    local args=("$@")
+
+    # Parse command-specific arguments
+    local show_help=false
+    local verbose=false
+    for arg in "${args[@]}"; do
+        case $arg in
+            --help)
+                show_help=true
+                ;;
+            --verbose)
+                verbose=true
+                ;;
+        esac
+    done
+
+    if [[ "$show_help" == true ]]; then
+        show_command_help status
+        return 0
+    fi
+
+    echo -e "${BLUE}Dotfiles Installation Status${NC}"
+    echo "=================================="
+
+    # Check git repository status
+    echo -e "\n${YELLOW}Repository Status:${NC}"
+    if [[ -d "$BASE_DIR/.git" ]]; then
+        echo -e "  ${GREEN}✓${NC} Git repository initialized"
+        if [[ "$verbose" == true ]]; then
+            echo "    Branch: $(git branch --show-current 2>/dev/null || echo 'unknown')"
+            echo "    Remote: $(git remote get-url origin 2>/dev/null || echo 'none')"
+        fi
+    else
+        echo -e "  ${RED}✗${NC} Not a git repository"
+    fi
+
+         # Check dotbot installation
+     echo -e "\n${YELLOW}Dotbot Status:${NC}"
+     if [[ -f "${DOTBOT_BIN}" ]]; then
+         echo -e "  ${GREEN}✓${NC} Dotbot installed"
+         if [[ "$verbose" == true ]]; then
+             echo "    Path: ${DOTBOT_BIN}"
+         fi
+     else
+         echo -e "  ${RED}✗${NC} Dotbot not found"
+     fi
+
+    # Check plugin status
+    echo -e "\n${YELLOW}Plugin Status:${NC}"
+    local installed_count=0
+    local total_count=${#DOTFILES_PLUGINS[@]}
+
+    for plugin in "${DOTFILES_PLUGINS[@]}"; do
+        local plugin_dir="plugins/$plugin"
+        local status_symbol=""
+        local status_text=""
+
+        if [[ -d "$plugin_dir" ]]; then
+            # Check if plugin has configuration files
+            local has_setup_sh=false
+            local has_setup_dotbot=false
+
+            [[ -f "$plugin_dir/setup.sh" ]] && has_setup_sh=true
+            [[ -f "$plugin_dir/setup.dotbot" ]] && has_setup_dotbot=true
+
+            if [[ "$has_setup_sh" == true || "$has_setup_dotbot" == true ]]; then
+                status_symbol="${GREEN}✓${NC}"
+                status_text="Available"
+                ((installed_count++))
+
+                if [[ "$verbose" == true ]]; then
+                    echo -e "  $status_symbol $plugin - $status_text"
+                    [[ "$has_setup_sh" == true ]] && echo "    - Has setup.sh"
+                    [[ "$has_setup_dotbot" == true ]] && echo "    - Has setup.dotbot"
+
+                    # Check specific plugin status
+                    check_plugin_status "$plugin" "$plugin_dir"
+                else
+                    echo -e "  $status_symbol $plugin"
+                fi
+            else
+                status_symbol="${YELLOW}!${NC}"
+                status_text="No setup files"
+                echo -e "  $status_symbol $plugin - $status_text"
+            fi
+        else
+            status_symbol="${RED}✗${NC}"
+            status_text="Missing"
+            echo -e "  $status_symbol $plugin - $status_text"
+        fi
+    done
+
+    # Summary
+    echo -e "\n${YELLOW}Summary:${NC}"
+    echo "  Plugins available: $installed_count/$total_count"
+
+    if [[ $installed_count -eq $total_count ]]; then
+        echo -e "  ${GREEN}✓${NC} All plugins are available"
+    else
+        echo -e "  ${YELLOW}!${NC} Some plugins are missing or incomplete"
+    fi
+
+    # Check system dependencies
+    echo -e "\n${YELLOW}System Dependencies:${NC}"
+    check_system_dependencies
+
+    return 0
+}
+
+# Check plugin-specific status
+function check_plugin_status() {
+    local plugin=$1
+    local plugin_dir=$2
+
+    case $plugin in
+        brew)
+            if command -v brew >/dev/null 2>&1; then
+                echo "    - Homebrew: $(brew --version | head -1)"
+            else
+                echo "    - Homebrew: Not installed"
+            fi
+            ;;
+        zsh)
+            if [[ -f ~/.zshrc ]]; then
+                echo "    - .zshrc: Linked"
+            else
+                echo "    - .zshrc: Not linked"
+            fi
+            ;;
+        cursor)
+            local cursor_settings="$HOME/Library/Application Support/Cursor/User/settings.json"
+            if [[ -f "$cursor_settings" ]]; then
+                echo "    - Settings: Linked"
+            else
+                echo "    - Settings: Not linked"
+            fi
+            ;;
+        direnv)
+            if command -v direnv >/dev/null 2>&1; then
+                echo "    - direnv: $(direnv version)"
+            else
+                echo "    - direnv: Not installed"
+            fi
+            ;;
+        hammerspoon)
+            if [[ -d ~/.hammerspoon ]]; then
+                echo "    - Configuration: Linked"
+            else
+                echo "    - Configuration: Not linked"
+            fi
+            ;;
+    esac
+}
+
+# Check system dependencies
+function check_system_dependencies() {
+    local deps=("git" "python3")
+
+    for dep in "${deps[@]}"; do
+        if command -v "$dep" >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✓${NC} $dep"
+        else
+            echo -e "  ${RED}✗${NC} $dep"
+        fi
+    done
+}
+
+# Validate environment (shared with bootstrap)
+function validate_environment() {
+    log_info "Validating environment..."
+
+    # Check required commands
+    require git command
+    require python3 command || require python command
+
+    # Check dotfiles location
+    if [[ ! -d "$BASE_DIR/.git" ]]; then
+        log_warn "Not a git repository, some features may not work"
+    fi
+
+    # Check dotbot installation
+    if ! dotbot_validate; then
+        log_error "Dotbot validation failed"
+        return 1
+    fi
+
+    # Platform detection
+    if is_macos; then
+        log_info "Detected platform: macOS"
+    elif is_linux; then
+        log_info "Detected platform: Linux"
+        if is_wsl; then
+            log_info "Running in WSL environment"
+        fi
+    else
+        log_warn "Unknown platform: $(uname -s)"
+    fi
+
+    log_info "Environment validation completed"
+    return 0
+}
+
+# Run a single plugin (shared with bootstrap)
+function run_plugin() {
+    local plugin=$1
+    local plugin_dir="plugins/$plugin"
+
+    set_error_context "plugin:$plugin"
+
+    if [[ ! -d "$plugin_dir" ]]; then
+        log_error "Plugin directory not found: $plugin_dir"
+        return 1
+    fi
+
+    log_info "Processing plugin: $plugin"
+
+    pushd "$plugin_dir" > /dev/null || {
+        log_error "Failed to enter plugin directory: $plugin_dir"
+        return 1
+    }
+
+    local success=true
+
+    # Run setup.sh if it exists
+    if [[ -f setup.sh ]]; then
+        if run_task "Running $plugin setup.sh" bash setup.sh; then
+            log_debug "Setup script completed for $plugin"
+        else
+            log_error "Setup script failed for $plugin"
+            success=false
+        fi
+    fi
+
+         # Run dotbot config if it exists
+     if [[ -f setup.dotbot ]]; then
+         if run_task "Running $plugin dotbot config" "$DOTBOT_BIN" -c setup.dotbot; then
+             log_debug "Dotbot config completed for $plugin"
+         else
+             log_error "Dotbot config failed for $plugin"
+             success=false
+         fi
+     fi
+
+    # Check if plugin has any files to process
+    if [[ ! -f setup.sh && ! -f setup.dotbot ]]; then
+        log_warn "Plugin $plugin has no setup.sh or setup.dotbot file"
+    fi
+
+    popd > /dev/null
+    clear_error_context
+
+    if [[ "$success" == true ]]; then
+        log_info "Plugin completed successfully: $plugin"
+        return 0
+    else
+        log_error "Plugin failed: $plugin"
+        return 1
+    fi
+}
+
+# Generate installation report (shared with bootstrap)
+function generate_report() {
+    local report_file="${BASE_DIR}/logs/last-install-report.txt"
+    safe_mkdir "$(dirname "$report_file")"
+
+    cat > "$report_file" << EOF
+Dotfiles Installation Report
+===========================
+Date: $(date)
+Platform: $(uname -s) $(uname -m)
+User: $USER
+Home: $HOME
+Base Directory: $BASE_DIR
+
+Configuration:
+- Debug mode: $DOTFILES_DEBUG
+- Strict mode: $DOTFILES_STRICT
+- Fail-fast: $DOTFILES_FAIL_FAST
+
+Results:
+- Total plugins: ${#DOTFILES_PLUGINS[@]}
+- Successful: $PROGRESS_SUCCESS
+- Failed: $PROGRESS_FAILED
+- Error count: $(get_error_count)
+
+Plugins processed:
+$(printf "  %s\n" "${DOTFILES_PLUGINS[@]}")
+
+Log file: $(get_log_file)
+
+EOF
+
+    if [[ $(get_error_count) -gt 0 ]]; then
+        echo "Error details:" >> "$report_file"
+        get_error_stack >> "$report_file"
+    fi
+
+    log_info "Installation report generated: $report_file"
+}
+
+# Main execution
+function main() {
+    # Check if no arguments provided
+    if [[ $# -eq 0 ]]; then
+        show_help
+        exit 0
+    fi
+
+         # Parse global arguments first
+     local remaining_args=()
+     while [[ $# -gt 0 ]]; do
+         case $1 in
+             --debug|--strict|--fail-fast|--quiet)
+                 parse_global_args "$1"
+                 shift
+                 ;;
+             --verbose)
+                 # Let commands handle their own verbose flag
+                 remaining_args+=("$1")
+                 shift
+                 ;;
+             *)
+                 remaining_args+=("$1")
+                 shift
+                 ;;
+         esac
+     done
+
+    # Get command
+    local command="${remaining_args[0]}"
+    local command_args=("${remaining_args[@]:1}")
+
+    # Log startup information
+    log_info "Dotfiles command started: $command"
+    log_info "OS: $(uname -s) $(uname -r)"
+    log_info "User: $USER"
+    log_info "Home: $HOME"
+    log_info "Shell: $SHELL"
+    log_info "Working directory: $PWD"
+
+    # Execute command
+    case $command in
+        install)
+            cmd_install "${command_args[@]}"
+            ;;
+        bootstrap)
+            cmd_bootstrap "${command_args[@]}"
+            ;;
+        status)
+            cmd_status "${command_args[@]}"
+            ;;
+        help)
+            if [[ ${#command_args[@]} -gt 0 ]]; then
+                show_command_help "${command_args[0]}"
+            else
+                show_help
+            fi
+            ;;
+        *)
+            echo "Unknown command: $command"
+            echo "Use './dotfiles help' for available commands"
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function with all arguments
+main "$@"
