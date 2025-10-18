@@ -56,7 +56,7 @@
 	fm = "!f() { git log --pretty=format:'%C(yellow)%h  %Cblue%ad  %Creset%s%Cgreen  [%cn] %Cred%d' --decorate --date=short --grep=$1; }; f"
 
 	# Remove branches that have already been merged with main.
-	# a.k.a. ‘delete merged’
+	# a.k.a. 'delete merged'
 	dm = "!git branch --merged | grep -v '\\*' | xargs -n 1 git branch -d"
 
 	# List contributors with number of commits.
@@ -64,6 +64,9 @@
 
 	# Show the user email for the current repository.
 	whoami = config user.email
+
+	# Commit amend without edit and force push
+	cpf = !git commit --amend --no-edit && git push --force
 
 [apply]
 
@@ -87,6 +90,7 @@
 [core]
     editor = subl -n -w
     pager = delta
+	excludesFile = ~/.gitignore
 
 [interactive]
     diffFilter = delta --color-only
