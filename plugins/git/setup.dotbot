@@ -6,3 +6,6 @@
     ~/.gitconfig: .gitconfig
     ~/.gitconfig.d: .gitconfig.d
     ~/.gitignore: .gitignore
+    ~/bin/git-bulk:
+      path: bin/git-bulk
+      mode: 0750

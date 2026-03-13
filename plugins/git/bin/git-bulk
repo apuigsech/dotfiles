@@ -1,0 +1,337 @@
+#!/usr/bin/env -S uv run --quiet --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["typer>=0.24", "rich>=14"]
+# ///
+"""Bulk git operations across all repos in a directory."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from typing import Annotated, Optional
+
+import typer
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn
+from rich.table import Table
+from rich.text import Text
+
+app = typer.Typer(help="Bulk git operations across sibling repos.")
+console = Console()
+
+SKIP_DIRS = {".venv", "__pycache__", "node_modules", ".cache"}
+
+
+def _resolve_root(root: Path | None) -> Path:
+    return (root or Path.cwd()).resolve()
+
+
+def _discover_repos(root: Path) -> list[Path]:
+    """Find all git repos in root (including hidden dirs, skipping known non-repo dirs)."""
+    repos: list[Path] = []
+    for entry in sorted(root.iterdir()):
+        if not entry.is_dir():
+            continue
+        if entry.name in SKIP_DIRS:
+            continue
+        if (entry / ".git").is_dir():
+            repos.append(entry)
+    return repos
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+    )
+
+
+def _default_branch(repo: Path) -> str:
+    """Detect the default branch (master or main) from origin/HEAD."""
+    result = _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD")
+    if result.returncode == 0:
+        return result.stdout.strip().rsplit("/", 1)[-1]
+    result = _git(repo, "rev-parse", "--verify", "refs/heads/master")
+    return "master" if result.returncode == 0 else "main"
+
+
+def _current_branch(repo: Path) -> str:
+    result = _git(repo, "branch", "--show-current")
+    return result.stdout.strip() or "(detached)"
+
+
+def _has_uncommitted(repo: Path) -> tuple[bool, int, int]:
+    """Return (has_changes, staged_count, dirty_count)."""
+    staged = _git(repo, "diff", "--cached", "--numstat")
+    unstaged = _git(repo, "diff", "--numstat")
+    untracked = _git(repo, "ls-files", "--others", "--exclude-standard")
+
+    staged_n = len(staged.stdout.strip().splitlines()) if staged.stdout.strip() else 0
+    unstaged_n = len(unstaged.stdout.strip().splitlines()) if unstaged.stdout.strip() else 0
+    untracked_n = len(untracked.stdout.strip().splitlines()) if untracked.stdout.strip() else 0
+
+    dirty = unstaged_n + untracked_n
+    return (staged_n + dirty) > 0, staged_n, dirty
+
+
+def _unpushed_count(repo: Path) -> int | None:
+    """Count commits ahead of upstream. None if no upstream."""
+    result = _git(repo, "rev-list", "--count", "@{upstream}..HEAD")
+    if result.returncode != 0:
+        return None
+    return int(result.stdout.strip())
+
+
+def _unpulled_count(repo: Path) -> int | None:
+    """Count commits behind upstream. None if no upstream."""
+    result = _git(repo, "rev-list", "--count", "HEAD..@{upstream}")
+    if result.returncode != 0:
+        return None
+    return int(result.stdout.strip())
+
+
+RootOption = Annotated[
+    Optional[Path],
+    typer.Option("--root", "-C", help="Root directory containing repos (default: cwd)."),
+]
+
+
+# ─── Commands ────────────────────────────────────────────────────────
+
+
+@app.command()
+def status(root: RootOption = None):
+    """Show branch, uncommitted changes, and unpushed commits for every repo."""
+    root_path = _resolve_root(root)
+    repos = _discover_repos(root_path)
+    if not repos:
+        console.print(f"[yellow]No repos found in {root_path}[/yellow]")
+        raise typer.Exit()
+
+    table = Table(title=f"Repos Status — {root_path}", title_style="bold cyan", border_style="dim")
+    table.add_column("Repo", style="bold")
+    table.add_column("Branch", style="cyan")
+    table.add_column("Staged", justify="right")
+    table.add_column("Dirty", justify="right")
+    table.add_column("Unpushed", justify="right")
+    table.add_column("Unpulled", justify="right")
+    table.add_column("Notes", style="dim")
+
+    for repo in repos:
+        branch = _current_branch(repo)
+        has_changes, staged, dirty = _has_uncommitted(repo)
+        unpushed = _unpushed_count(repo)
+        unpulled = _unpulled_count(repo)
+
+        notes: list[str] = []
+        default = _default_branch(repo)
+
+        branch_text = branch if branch == default else f"[yellow]{branch}[/yellow]"
+        staged_text = Text(str(staged), style="green" if staged > 0 else "dim")
+        dirty_text = Text(str(dirty), style="red" if dirty > 0 else "dim")
+
+        if unpushed is None:
+            unpushed_text = Text("-", style="dim")
+            unpulled_text = Text("-", style="dim")
+            notes.append("no upstream")
+        else:
+            unpushed_text = Text(str(unpushed), style="yellow" if unpushed > 0 else "dim")
+            unpulled_text = Text(str(unpulled), style="magenta" if unpulled and unpulled > 0 else "dim")
+
+        result = _git(repo, "rev-parse", "HEAD")
+        if result.returncode != 0:
+            notes.append("empty repo")
+
+        table.add_row(
+            repo.name,
+            branch_text,
+            staged_text,
+            dirty_text,
+            unpushed_text,
+            unpulled_text,
+            ", ".join(notes) if notes else "",
+        )
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+@app.command()
+def checkout(
+    branch: str = typer.Argument("master", help="Branch to checkout (default: each repo's default branch)."),
+    auto_stash: bool = typer.Option(False, "--stash", "-s", help="Auto-stash dirty repos before checkout."),
+    root: RootOption = None,
+):
+    """Checkout a branch across all repos. Uses each repo's default branch if 'master' is passed."""
+    root_path = _resolve_root(root)
+    repos = _discover_repos(root_path)
+    if not repos:
+        console.print(f"[yellow]No repos found in {root_path}[/yellow]")
+        raise typer.Exit()
+
+    table = Table(title=f"Checkout → {branch}", title_style="bold cyan", border_style="dim")
+    table.add_column("Repo", style="bold")
+    table.add_column("From", style="dim")
+    table.add_column("To", style="cyan")
+    table.add_column("Result")
+
+    for repo in repos:
+        current = _current_branch(repo)
+        target = _default_branch(repo) if branch == "master" else branch
+
+        if current == target:
+            table.add_row(repo.name, current, target, "[dim]already there[/dim]")
+            continue
+
+        has_changes, _, _ = _has_uncommitted(repo)
+        if has_changes:
+            if auto_stash:
+                stash_result = _git(repo, "stash", "push", "-m", f"git-bulk auto-stash before checkout {target}")
+                if stash_result.returncode != 0:
+                    table.add_row(repo.name, current, target, f"[red]stash failed: {stash_result.stderr.strip()}[/red]")
+                    continue
+            else:
+                table.add_row(repo.name, current, target, "[yellow]dirty — skipped (use --stash)[/yellow]")
+                continue
+
+        exists = _git(repo, "rev-parse", "--verify", f"refs/heads/{target}")
+        if exists.returncode != 0:
+            _git(repo, "fetch", "origin", target)
+            exists = _git(repo, "rev-parse", "--verify", f"refs/remotes/origin/{target}")
+            if exists.returncode != 0:
+                table.add_row(repo.name, current, target, f"[red]branch '{target}' not found[/red]")
+                continue
+
+        result = _git(repo, "checkout", target)
+        if result.returncode == 0:
+            stash_note = " (stashed)" if has_changes and auto_stash else ""
+            table.add_row(repo.name, current, target, f"[green]ok{stash_note}[/green]")
+        else:
+            table.add_row(repo.name, current, target, f"[red]{result.stderr.strip()[:60]}[/red]")
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+@app.command()
+def fetch(root: RootOption = None):
+    """Fetch all remotes across all repos."""
+    root_path = _resolve_root(root)
+    repos = _discover_repos(root_path)
+    if not repos:
+        console.print(f"[yellow]No repos found in {root_path}[/yellow]")
+        raise typer.Exit()
+
+    table = Table(title="Fetch All", title_style="bold cyan", border_style="dim")
+    table.add_column("Repo", style="bold")
+    table.add_column("Result")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Fetching…", total=len(repos))
+        for repo in repos:
+            progress.update(task, description=f"Fetching {repo.name}…")
+            result = _git(repo, "fetch", "--all", "--prune")
+            if result.returncode == 0:
+                table.add_row(repo.name, "[green]ok[/green]")
+            else:
+                table.add_row(repo.name, f"[red]{result.stderr.strip()[:60]}[/red]")
+            progress.advance(task)
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+@app.command()
+def pull(root: RootOption = None):
+    """Pull current branch across all repos (fast-forward only)."""
+    root_path = _resolve_root(root)
+    repos = _discover_repos(root_path)
+    if not repos:
+        console.print(f"[yellow]No repos found in {root_path}[/yellow]")
+        raise typer.Exit()
+
+    table = Table(title="Pull (ff-only)", title_style="bold cyan", border_style="dim")
+    table.add_column("Repo", style="bold")
+    table.add_column("Branch", style="cyan")
+    table.add_column("Result")
+
+    for repo in repos:
+        branch = _current_branch(repo)
+        has_changes, _, _ = _has_uncommitted(repo)
+        if has_changes:
+            table.add_row(repo.name, branch, "[yellow]dirty — skipped[/yellow]")
+            continue
+
+        result = _git(repo, "pull", "--ff-only")
+        if result.returncode == 0:
+            out = result.stdout.strip()
+            if "Already up to date" in out:
+                table.add_row(repo.name, branch, "[dim]up to date[/dim]")
+            else:
+                table.add_row(repo.name, branch, "[green]updated[/green]")
+        else:
+            table.add_row(repo.name, branch, f"[red]{result.stderr.strip()[:60]}[/red]")
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+@app.command(
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+)
+def do(
+    ctx: typer.Context,
+    root: RootOption = None,
+):
+    """Run any git command across all repos.
+
+    Everything after 'do' is passed straight to git:
+
+        git bulk do log --oneline -3
+        git bulk do remote -v
+        git bulk do branch -D old-feature
+    """
+    git_args = ctx.args
+    if not git_args:
+        console.print("[red]No git command specified.[/red]  Usage: git bulk do <command> [args...]")
+        raise typer.Exit(1)
+
+    root_path = _resolve_root(root)
+    repos = _discover_repos(root_path)
+    if not repos:
+        console.print(f"[yellow]No repos found in {root_path}[/yellow]")
+        raise typer.Exit()
+
+    cmd_str = " ".join(git_args)
+    table = Table(title=f"git {cmd_str}", title_style="bold cyan", border_style="dim")
+    table.add_column("Repo", style="bold")
+    table.add_column("Result")
+
+    for repo in repos:
+        result = _git(repo, *git_args)
+        output = (result.stdout.strip() or result.stderr.strip())[:120]
+        if result.returncode == 0:
+            table.add_row(repo.name, output or "[dim]ok[/dim]")
+        else:
+            table.add_row(repo.name, f"[red]{output}[/red]")
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+if __name__ == "__main__":
+    app()
