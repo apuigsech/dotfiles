@@ -1,2 +1,6 @@
 .envrc
 .venv
+.local
+.claude
+.serena
+.DS_Store
