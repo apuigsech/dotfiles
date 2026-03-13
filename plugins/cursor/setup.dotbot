@@ -1,0 +1,32 @@
+- defaults:
+    link:
+      relink: true
+      create: true
+
+- create:
+    - ~/Library/Application Support/Cursor
+    - ~/Library/Application Support/Cursor/User
+    - ~/Library/Application Support/Cursor/User/snippets
+
+- link:
+    # Cursor User Settings
+    ~/Library/Application Support/Cursor/User/settings.json: settings.json
+    ~/Library/Application Support/Cursor/User/keybindings.json: keybindings.json
+    ~/Library/Application Support/Cursor/User/extensions.json: extensions.json
+
+- shell:
+    - description: "Setting up Cursor configuration"
+      command: |
+        # Ensure Cursor directories exist
+        mkdir -p ~/Library/Application\ Support/Cursor/User/snippets
+        
+        # Set proper permissions
+        chmod 755 ~/Library/Application\ Support/Cursor
+        chmod 755 ~/Library/Application\ Support/Cursor/User
+        chmod 644 ~/Library/Application\ Support/Cursor/User/settings.json 2>/dev/null || true
+        chmod 644 ~/Library/Application\ Support/Cursor/User/keybindings.json 2>/dev/null || true
+        chmod 644 ~/Library/Application\ Support/Cursor/User/extensions.json 2>/dev/null || true
+        
+        echo "Cursor configuration setup complete"
+      stdout: true
+      stderr: true 
