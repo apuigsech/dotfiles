@@ -19,7 +19,7 @@ source lib/brew
 source lib/uninstall
 
 # Configuration
-DOTFILES_PLUGINS=(brew shell zsh direnv hammerspoon configs bluereset renicer cursor)
+DOTFILES_PLUGINS=(brew shell zsh git ssh direnv hammerspoon configs bluereset renicer cursor macos-defaults)
 DOTBOT_DIR="dotbot"
 CONFIG="install.conf.yaml"
 
