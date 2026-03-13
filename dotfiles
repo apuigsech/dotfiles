@@ -38,6 +38,7 @@ Commands:
     install     Install specific plugins or all plugins with --all
     uninstall   Remove specific plugins or all plugins with --all
     status      Check installation status of plugins and file links
+    doctor      Diagnose problems: broken symlinks, missing packages, PATH issues
     help        Show this help message
 
 Options:
@@ -180,6 +181,27 @@ Options:
 Examples:
     ./dotfiles status
     ./dotfiles status --verbose
+
+EOF
+            ;;
+        doctor)
+            cat << EOF
+dotfiles doctor - Diagnose dotfiles health
+
+Usage: ./dotfiles doctor [options]
+
+This command checks for common problems:
+- Broken symlinks from plugin configurations
+- Missing brew packages vs package lists
+- Expected tools not found in PATH
+- Plugin registration and directory issues
+- Git and dotbot health
+
+Options:
+    --help      Show this help message
+
+Examples:
+    ./dotfiles doctor
 
 EOF
             ;;
@@ -588,6 +610,192 @@ function cmd_status() {
     return 0
 }
 
+# Doctor command - Diagnose dotfiles health
+function cmd_doctor() {
+    local args=("$@")
+    local show_help=false
+    for arg in "${args[@]}"; do
+        case $arg in
+            --help) show_help=true ;;
+        esac
+    done
+
+    if [[ "$show_help" == true ]]; then
+        show_command_help doctor
+        return 0
+    fi
+
+    local issues=0
+
+    echo -e "${BLUE}Dotfiles Doctor${NC}"
+    echo "=================================="
+
+    # 1. Check dotbot submodule
+    echo -e "\n${YELLOW}[1/6] Dotbot${NC}"
+    if [[ -f "$DOTBOT_BIN" && -x "$DOTBOT_BIN" ]]; then
+        echo -e "  ${GREEN}✓${NC} Dotbot binary found and executable"
+    else
+        echo -e "  ${RED}✗${NC} Dotbot binary missing or not executable ($DOTBOT_BIN)"
+        echo "    Fix: git submodule update --init --recursive dotbot"
+        ((issues++))
+    fi
+
+    # 2. Check plugin directories exist for all registered plugins
+    echo -e "\n${YELLOW}[2/6] Plugin directories${NC}"
+    for plugin in "${DOTFILES_PLUGINS[@]}"; do
+        local plugin_dir="plugins/$plugin"
+        if [[ ! -d "$plugin_dir" ]]; then
+            echo -e "  ${RED}✗${NC} Plugin registered but directory missing: $plugin"
+            ((issues++))
+        elif [[ ! -f "$plugin_dir/setup.sh" && ! -f "$plugin_dir/setup.dotbot" ]]; then
+            echo -e "  ${YELLOW}!${NC} Plugin has no setup.sh or setup.dotbot: $plugin"
+            ((issues++))
+        fi
+    done
+    if [[ $issues -eq 0 ]]; then
+        echo -e "  ${GREEN}✓${NC} All ${#DOTFILES_PLUGINS[@]} plugin directories present"
+    fi
+
+    # 3. Check symlinks from all dotbot configs
+    echo -e "\n${YELLOW}[3/6] Symlinks${NC}"
+    local broken_links=0
+    for plugin in "${DOTFILES_PLUGINS[@]}"; do
+        local config="plugins/$plugin/setup.dotbot"
+        [[ ! -f "$config" ]] && continue
+
+        # Extract link targets (lines like "  ~/.something: source" or "  ~/.something:")
+        while IFS= read -r line; do
+            # Match lines with ~/path or ~/.path as link target
+            if [[ "$line" =~ ^[[:space:]]+(~/[^:]+): ]]; then
+                local target="${BASH_REMATCH[1]}"
+                target="${target/#\~/$HOME}"
+                # Trim whitespace
+                target="$(echo "$target" | xargs)"
+
+                if [[ -L "$target" ]]; then
+                    local link_dest
+                    link_dest=$(readlink "$target")
+                    if [[ ! -e "$target" ]]; then
+                        echo -e "  ${RED}✗${NC} Broken symlink: $target -> $link_dest [$plugin]"
+                        ((broken_links++))
+                        ((issues++))
+                    fi
+                elif [[ ! -e "$target" ]]; then
+                    echo -e "  ${YELLOW}!${NC} Missing (not linked): $target [$plugin]"
+                    ((issues++))
+                fi
+            fi
+        done < "$config"
+    done
+    if [[ $broken_links -eq 0 ]]; then
+        echo -e "  ${GREEN}✓${NC} No broken symlinks found"
+    fi
+
+    # 4. Check brew packages
+    echo -e "\n${YELLOW}[4/6] Brew packages${NC}"
+    if has_cmd brew; then
+        local missing_pkgs=()
+        local missing_casks=()
+
+        # Check formula packages
+        if [[ -f "plugins/brew/packages.lst" ]]; then
+            while IFS= read -r pkg; do
+                [[ -z "$pkg" || "$pkg" =~ ^[[:space:]]*# ]] && continue
+                pkg=$(echo "$pkg" | xargs)
+                if ! brew list "$pkg" &>/dev/null; then
+                    missing_pkgs+=("$pkg")
+                fi
+            done < "plugins/brew/packages.lst"
+        fi
+
+        # Check cask packages
+        if [[ -f "plugins/brew/packages-cask.lst" ]]; then
+            while IFS= read -r pkg; do
+                [[ -z "$pkg" || "$pkg" =~ ^[[:space:]]*# ]] && continue
+                pkg=$(echo "$pkg" | xargs)
+                if ! brew list --cask "$pkg" &>/dev/null; then
+                    missing_casks+=("$pkg")
+                fi
+            done < "plugins/brew/packages-cask.lst"
+        fi
+
+        if [[ ${#missing_pkgs[@]} -gt 0 ]]; then
+            echo -e "  ${RED}✗${NC} Missing formulae: ${missing_pkgs[*]}"
+            echo "    Fix: ./dotfiles install brew"
+            ((issues++))
+        else
+            echo -e "  ${GREEN}✓${NC} All formulae installed"
+        fi
+
+        if [[ ${#missing_casks[@]} -gt 0 ]]; then
+            echo -e "  ${YELLOW}!${NC} Missing casks: ${missing_casks[*]}"
+            ((issues++))
+        else
+            echo -e "  ${GREEN}✓${NC} All casks installed"
+        fi
+    else
+        echo -e "  ${RED}✗${NC} Homebrew not installed"
+        echo "    Fix: ./dotfiles install brew"
+        ((issues++))
+    fi
+
+    # 5. Check expected tools in PATH
+    echo -e "\n${YELLOW}[5/6] Tools in PATH${NC}"
+    local expected_tools=(git python3 zsh direnv gpg delta fzf rg fd bat jq yq gh fnm)
+    local missing_tools=()
+    for tool in "${expected_tools[@]}"; do
+        if ! command -v "$tool" &>/dev/null; then
+            missing_tools+=("$tool")
+        fi
+    done
+    if [[ ${#missing_tools[@]} -gt 0 ]]; then
+        echo -e "  ${YELLOW}!${NC} Not in PATH: ${missing_tools[*]}"
+        ((issues++))
+    else
+        echo -e "  ${GREEN}✓${NC} All ${#expected_tools[@]} expected tools found"
+    fi
+
+    # 6. Git identity and signing
+    echo -e "\n${YELLOW}[6/6] Git identity${NC}"
+    local git_name git_email git_signing
+    git_name=$(git config user.name 2>/dev/null || true)
+    git_email=$(git config user.email 2>/dev/null || true)
+    git_signing=$(git config commit.gpgsign 2>/dev/null || true)
+
+    if [[ -z "$git_name" || -z "$git_email" ]]; then
+        echo -e "  ${RED}✗${NC} Git identity not configured (name='$git_name' email='$git_email')"
+        echo "    Check: ls -la ~/.gitconfig (should be symlink to plugins/git/.gitconfig)"
+        ((issues++))
+    else
+        echo -e "  ${GREEN}✓${NC} $git_name <$git_email>"
+    fi
+
+    if [[ "$git_signing" == "true" ]]; then
+        local signing_key
+        signing_key=$(git config user.signingkey 2>/dev/null || true)
+        if [[ -n "$signing_key" ]] && gpg --list-secret-keys "$signing_key" &>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} GPG signing enabled (key: ${signing_key: -16})"
+        else
+            echo -e "  ${YELLOW}!${NC} GPG signing enabled but key not found: $signing_key"
+            ((issues++))
+        fi
+    else
+        echo -e "  ${YELLOW}!${NC} GPG commit signing not enabled"
+    fi
+
+    # Summary
+    echo -e "\n${YELLOW}Summary${NC}"
+    echo "=================================="
+    if [[ $issues -eq 0 ]]; then
+        echo -e "  ${GREEN}✓${NC} No issues found. Everything looks healthy!"
+    else
+        echo -e "  ${YELLOW}!${NC} Found $issues issue(s). Review the output above."
+    fi
+    echo
+
+    return 0
+}
+
 # Helper function to check plugin-specific status
 function check_plugin_status() {
     local plugin=$1
@@ -859,6 +1067,9 @@ function main() {
             ;;
         status)
             cmd_status "${command_args[@]}"
+            ;;
+        doctor)
+            cmd_doctor "${command_args[@]}"
             ;;
         help)
             if [[ ${#command_args[@]} -gt 0 ]]; then
