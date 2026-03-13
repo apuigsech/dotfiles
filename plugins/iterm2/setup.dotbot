@@ -1,0 +1,10 @@
+- defaults:
+    link:
+      relink: true
+      force: true
+
+- create:
+    - ~/Library/Application Support/iTerm2/DynamicProfiles
+
+- link:
+    ~/Library/Application Support/iTerm2/DynamicProfiles/claude-code.json: claude-code.json
