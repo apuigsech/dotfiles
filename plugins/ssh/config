@@ -1,0 +1,14 @@
+Host github.com
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/apuigsech_github
+
+Host github.mpi-internal.com
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/adevinta
+
+Host 51.79.255.43
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/id_vps_51.79.255.43

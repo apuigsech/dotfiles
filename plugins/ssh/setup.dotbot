@@ -1,0 +1,12 @@
+- defaults:
+    link:
+      relink: true
+
+- create:
+    - ~/.ssh:
+        mode: 0700
+
+- link:
+    ~/.ssh/config:
+      path: config
+      mode: 0600
