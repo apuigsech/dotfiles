@@ -15,7 +15,13 @@ get_node_default_version() {
     fi
 }
 
+# Get default Python version
+get_python_default_version() {
+    python3 --version 2>/dev/null | awk '{print $2}' || echo "3"
+}
+
 readonly NODE_DEFAULT_VERSION=$(get_node_default_version)
+readonly PYTHON_DEFAULT_VERSION=$(get_python_default_version)
 
 # Function to deploy .envrc file
 deploy_envrc() {
@@ -43,10 +49,41 @@ deploy_envrc() {
 
 # Function to create a Python virtual environment
 create_python_env() {
-    echo "Creating Python virtual environment..."
+    local version="${1:-}"
+    local python_cmd="python3"
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "Error: python3 is not installed or not in PATH" >&2
+    # If version is specified, try to find the appropriate Python binary
+    if [[ -n "$version" ]]; then
+        # Try pyenv first if available
+        if command -v pyenv >/dev/null 2>&1; then
+            if pyenv versions --bare | grep -q "^${version}"; then
+                python_cmd="$(pyenv root)/versions/${version}/bin/python"
+                echo "Using Python ${version} from pyenv"
+            else
+                echo "Error: Python ${version} not found in pyenv" >&2
+                echo "Available versions:" >&2
+                pyenv versions --bare >&2
+                exit 1
+            fi
+        else
+            # Try to find python binary with specific version
+            local version_cmd="python${version}"
+            if command -v "$version_cmd" >/dev/null 2>&1; then
+                python_cmd="$version_cmd"
+                echo "Using ${version_cmd}"
+            else
+                echo "Error: ${version_cmd} not found in PATH and pyenv is not installed" >&2
+                echo "Available Python versions:" >&2
+                ls -1 /usr/bin/python* 2>/dev/null || echo "  None found" >&2
+                exit 1
+            fi
+        fi
+    else
+        echo "Using default Python version: $PYTHON_DEFAULT_VERSION"
+    fi
+
+    if ! command -v "$python_cmd" >/dev/null 2>&1 && [[ ! -x "$python_cmd" ]]; then
+        echo "Error: $python_cmd is not installed or not in PATH" >&2
         exit 1
     fi
 
@@ -55,7 +92,8 @@ create_python_env() {
         rm -rf ".venv"
     fi
 
-    python3 -m venv .venv
+    echo "Creating Python virtual environment..."
+    "$python_cmd" -m venv .venv
     deploy_envrc
     echo "Python virtual environment created successfully"
 }
@@ -85,21 +123,29 @@ create_node_env() {
 # Function to display usage information
 show_usage() {
     cat << EOF
-Usage: $SCRIPT_NAME <type> [options]
+Usage: $SCRIPT_NAME <type> [version]
 
 Create a virtual environment with direnv integration.
 
 Types:
-  python, py    Create a Python virtual environment
+  python, py    Create a Python virtual environment [version]
   node          Create a Node.js virtual environment [version]
 
-Options for node:
-  version       Node.js version to install (default: $NODE_DEFAULT_VERSION)
+Options:
+  version       Python/Node.js version to use
+                Python default: $PYTHON_DEFAULT_VERSION
+                Node default: $NODE_DEFAULT_VERSION
 
 Examples:
-  $SCRIPT_NAME python
-  $SCRIPT_NAME node
-  $SCRIPT_NAME node 18.17.0
+  $SCRIPT_NAME python           # Use default Python ($PYTHON_DEFAULT_VERSION)
+  $SCRIPT_NAME python 3.11      # Use Python 3.11 (pyenv or python3.11 binary)
+  $SCRIPT_NAME python 3.12.2    # Use specific Python version from pyenv
+  $SCRIPT_NAME node             # Use default Node ($NODE_DEFAULT_VERSION)
+  $SCRIPT_NAME node 18.17.0     # Use Node 18.17.0
+
+Notes:
+  - For Python: Tries pyenv first, falls back to pythonX.Y binary in PATH
+  - For Node: Requires nodeenv to be installed (pip install nodeenv)
 
 Supported types: $SUPPORTED_TYPES
 EOF
