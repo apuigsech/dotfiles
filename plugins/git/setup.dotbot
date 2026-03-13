@@ -1,0 +1,8 @@
+- defaults:
+    link:
+      relink: true
+
+- link:
+    ~/.gitconfig: .gitconfig
+    ~/.gitconfig.d: .gitconfig.d
+    ~/.gitignore: .gitignore

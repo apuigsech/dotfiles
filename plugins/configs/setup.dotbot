@@ -4,7 +4,4 @@
 
 - link:
     ~/.gdbinit: .gdbinit
-    ~/.gitconfig: .gitconfig
-    ~/.gitconfig.d: .gitconfig.d
-    ~/.gitignore: .gitignore
     ~/.wgetrc: .wgetrc
