@@ -207,7 +207,7 @@ defaults write com.apple.TextEdit RichText -int 0
 ###############################################################################
 
 hosts_entries=(
-    "127.0.0.2 ollama.local"
+    "127.0.0.1 ollama.local"
 )
 
 for entry in "${hosts_entries[@]}"; do
