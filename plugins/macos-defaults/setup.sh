@@ -114,14 +114,30 @@ defaults write com.apple.finder FXPreferredViewStyle -string "clmv"
 # Dock                                                                        #
 ###############################################################################
 
+# Position on the left
+defaults write com.apple.dock orientation -string "left"
+
 # Set the icon size of Dock items
 defaults write com.apple.dock tilesize -int 48
+
+# Enable magnification
+defaults write com.apple.dock magnification -bool true
+defaults write com.apple.dock largesize -int 30
 
 # Minimize windows using scale effect
 defaults write com.apple.dock mineffect -string "scale"
 
+# Minimize windows into application icon
+defaults write com.apple.dock minimize-to-application -bool true
+
+# Disable launch animation
+defaults write com.apple.dock launchanim -bool false
+
 # Don't show recent applications in Dock
 defaults write com.apple.dock show-recents -bool false
+
+# Don't show process indicators
+defaults write com.apple.dock show-process-indicators -bool false
 
 # Automatically hide and show the Dock
 defaults write com.apple.dock autohide -bool true
@@ -131,6 +147,9 @@ defaults write com.apple.dock autohide-delay -float 0
 
 # Speed up the animation when hiding/showing the Dock
 defaults write com.apple.dock autohide-time-modifier -float 0.3
+
+# Hot corner: bottom right → Quick Note
+defaults write com.apple.dock wvous-br-corner -int 14
 
 ###############################################################################
 # Safari                                                                      #
