@@ -10,4 +10,4 @@ brew_install
 
 # Install packages from Brewfile
 log_info "Installing packages from Brewfile..."
-brew bundle --file="$(dirname "$0")/Brewfile" --no-lock
+brew bundle --file="$(dirname "$0")/Brewfile"
