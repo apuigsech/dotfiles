@@ -1,0 +1,6 @@
+# Local inference
+brew "ollama"
+brew "open-webui"
+
+# AI assistants
+cask "claude"
