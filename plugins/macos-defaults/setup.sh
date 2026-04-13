@@ -151,6 +151,29 @@ defaults write com.apple.dock autohide-time-modifier -float 0.3
 # Hot corner: bottom right → Quick Note
 defaults write com.apple.dock wvous-br-corner -int 14
 
+# Dock apps (requires dockutil)
+if has_cmd dockutil; then
+    log_info "Configuring dock apps..."
+    dockutil --remove all --no-restart
+
+    dock_apps=(
+        "/Applications/Telegram.app"
+        "/Applications/Arc.app"
+        "/Applications/iTerm.app"
+        "/Applications/ChatGPT Atlas.app"
+    )
+
+    for app in "${dock_apps[@]}"; do
+        if [[ -d "$app" ]]; then
+            dockutil --add "$app" --no-restart
+        else
+            log_warn "Dock app not found: $app"
+        fi
+    done
+else
+    log_warn "dockutil not found, skipping dock apps setup"
+fi
+
 ###############################################################################
 # Safari                                                                      #
 ###############################################################################

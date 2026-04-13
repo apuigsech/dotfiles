@@ -14,6 +14,9 @@ brew "wget"
 brew "yq"
 brew "zsh"
 
+# System tools
+brew "dockutil"
+
 # Git
 brew "gh"
 brew "git-delta"
