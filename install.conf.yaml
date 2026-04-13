@@ -1,0 +1,14 @@
+- defaults:
+    link:
+      relink: true
+      create: true
+
+- create:
+    - ~/bin
+    - ~/.shell
+    - ~/.aliases
+    - ~/.env
+    - ~/.paths
+
+- link:
+    ~/.dotfiles: ""
