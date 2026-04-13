@@ -1,0 +1,11 @@
+# Communication
+cask "slack"
+cask "telegram"
+
+# Media
+cask "spotify"
+cask "vlc"
+
+# Utilities
+brew "blueutil"
+cask "tunnelblick"

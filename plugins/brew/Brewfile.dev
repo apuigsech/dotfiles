@@ -1,0 +1,18 @@
+# Languages & version managers
+brew "fnm"
+brew "go"
+brew "pyenv"
+brew "uv"
+
+# Containers
+brew "docker"
+brew "docker-compose"
+
+# Tools
+brew "direnv"
+brew "httpie"
+brew "pre-commit"
+
+# Editors & IDEs
+cask "visual-studio-code"
+cask "claude"

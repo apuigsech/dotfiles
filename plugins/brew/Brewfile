@@ -1,41 +1,39 @@
-# Formulae
+# Core CLI utilities
 brew "bat"
-brew "blueutil"
 brew "coreutils"
-brew "direnv"
-brew "docker"
-brew "docker-compose"
 brew "eza"
 brew "fd"
-brew "fnm"
 brew "fzf"
-brew "gh"
-brew "git-delta"
-brew "gnupg"
-brew "gnutls"
 brew "grc"
-brew "httpie"
 brew "jq"
-brew "pyenv"
 brew "ripgrep"
 brew "tldr"
 brew "tree"
+brew "watch"
+brew "wget"
 brew "yq"
 brew "zsh"
+
+# Git
+brew "gh"
+brew "git-delta"
+brew "tig"
+
+# Security
+brew "gnupg"
+brew "gnutls"
 
 # Fonts
 cask "font-meslo-lg-nerd-font"
 
-# Casks
+# Essential apps
 cask "1password"
 cask "arc"
 cask "google-chrome"
 cask "gpg-suite"
 cask "hammerspoon"
 cask "iterm2"
-cask "slack"
-cask "spotify"
-cask "telegram"
-cask "tunnelblick"
-cask "visual-studio-code"
-cask "vlc"
+cask "raycast"
+cask "stats"
+cask "sublime-text"
+cask "the-unarchiver"
