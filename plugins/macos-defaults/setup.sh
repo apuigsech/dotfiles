@@ -206,16 +206,20 @@ defaults write com.apple.TextEdit RichText -int 0
 # Loopback aliases                                                            #
 ###############################################################################
 
+SCRIPT_SRC="$(dirname "$0")/loopback-aliases.sh"
+SCRIPT_DST="/Library/Scripts/dotfiles/loopback-aliases.sh"
 PLIST_SRC="$(dirname "$0")/com.dotfiles.loopback-aliases.plist"
 PLIST_DST="/Library/LaunchDaemons/com.dotfiles.loopback-aliases.plist"
 
-if [[ -f "$PLIST_SRC" ]] && [[ ! -f "$PLIST_DST" ]]; then
-    log_info "Installing loopback alias LaunchDaemon (127.0.0.2)..."
-    sudo cp "$PLIST_SRC" "$PLIST_DST"
-    sudo chown root:wheel "$PLIST_DST"
-    sudo chmod 644 "$PLIST_DST"
-    sudo launchctl load "$PLIST_DST"
-fi
+log_info "Installing loopback aliases..."
+sudo mkdir -p /Library/Scripts/dotfiles
+sudo cp "$SCRIPT_SRC" "$SCRIPT_DST"
+sudo chmod 755 "$SCRIPT_DST"
+sudo cp "$PLIST_SRC" "$PLIST_DST"
+sudo chown root:wheel "$PLIST_DST"
+sudo chmod 644 "$PLIST_DST"
+sudo launchctl unload "$PLIST_DST" 2>/dev/null || true
+sudo launchctl load "$PLIST_DST"
 
 ###############################################################################
 # Local DNS (/etc/hosts)                                                      #
@@ -223,6 +227,7 @@ fi
 
 hosts_entries=(
     "127.0.0.2 ollama.local"
+    "127.0.0.3 webui.local"
 )
 
 for entry in "${hosts_entries[@]}"; do
