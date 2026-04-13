@@ -24,7 +24,7 @@
         "Green Component" : 0.47058823528999999
       },
       "Name" : "Claude Code",
-      "Non Ascii Font" : "MesloLGS-NF-Regular 13",
+      "Non Ascii Font" : "MesloLGSNerdFontMono-Regular 13",
       "Columns" : 200,
       "Rows" : 50,
       "Foreground Color" : {
