@@ -8,6 +8,9 @@ brew "uv"
 brew "docker"
 brew "docker-compose"
 
+# AI / Local inference
+brew "ollama"
+
 # Tools
 brew "direnv"
 brew "httpie"
