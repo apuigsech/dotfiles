@@ -1,0 +1,10 @@
+- defaults:
+    link:
+      relink: true
+
+- create:
+    - ~/.shell
+
+- link:
+    ~/.shell/at-command: enable
+    ~/.at_prompt: at_prompt

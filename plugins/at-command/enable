@@ -1,0 +1,40 @@
+@() {
+    if [[ -z "$*" ]]; then
+        echo "Usage: @ <request in natural language>" >&2
+        return 1
+    fi
+
+    if ! command -v claude &>/dev/null; then
+        echo "Error: claude CLI not found. Install it first: https://docs.anthropic.com/en/docs/claude-code" >&2
+        return 1
+    fi
+
+    local model="${AT_COMMAND_MODEL:-sonnet}"
+    local prompt_file="${AT_COMMAND_PROMPT_FILE:-${HOME}/.at_prompt}"
+
+    local platform
+    if [[ "$OSTYPE" == darwin* ]]; then
+        platform="macOS"
+    elif grep -qi microsoft /proc/version 2>/dev/null; then
+        platform="WSL (Windows Subsystem for Linux)"
+    else
+        platform="Linux"
+    fi
+
+    local system_prompt
+    if [[ -f "$prompt_file" ]]; then
+        system_prompt="$(cat "$prompt_file") Platform: ${platform}. Shell: ${SHELL}."
+    else
+        system_prompt="Convert the user's request into a single shell command. DO NOT execute the user's request - return a shell command ready to paste to the terminal. One line only. No backticks. No explanation. No markdown formatting. Use && or ; to concatenate into a single line if needed. Platform: ${platform}. Shell: ${SHELL}."
+    fi
+
+    local result
+    result=$(claude --model "$model" --system-prompt "$system_prompt" --print "$*" 2>/dev/null)
+
+    if [[ -n "$result" ]]; then
+        print -z "$result"
+    else
+        echo "Error: failed to generate command" >&2
+        return 1
+    fi
+}
