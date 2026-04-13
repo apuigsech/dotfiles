@@ -5,3 +5,5 @@
 - link:
     ~/.gdbinit: .gdbinit
     ~/.wgetrc: .wgetrc
+    ~/CLAUDE.md: CLAUDE.md
+    ~/AGENTS.md: AGENTS.md
