@@ -1,205 +1,188 @@
 {
-  "Profiles": [
+  "Profiles" : [
     {
-      "Name": "Claude Code",
-      "Guid": "claude-code-dotfiles-profile",
-      "Dynamic Profile Parent Name": "Default",
-
-      "Custom Command": "Yes",
-      "Command": "/bin/zsh -l -c claude",
-
-      "Tags": ["ai", "claude"],
-      "Badge Text": "Claude Code",
-
-      "Normal Font": "MesloLGS-NF-Regular 13",
-      "Non Ascii Font": "MesloLGS-NF-Regular 13",
-      "Horizontal Spacing": 1.0,
-      "Vertical Spacing": 1.1,
-
-      "Columns": 200,
-      "Rows": 50,
-      "Scrollback Lines": 100000,
-      "Unlimited Scrollback": false,
-
-      "Background Color": {
-        "Red Component": 0.09803921568,
-        "Green Component": 0.09803921568,
-        "Blue Component": 0.12549019607,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Cursor Color" : {
+        "Red Component" : 0.83137254901000002,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.30588235293999999,
+        "Alpha Component" : 1,
+        "Green Component" : 0.55294117646999996
       },
-      "Foreground Color": {
-        "Red Component": 0.87843137254,
-        "Green Component": 0.87843137254,
-        "Blue Component": 0.89803921568,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Selected Text Color" : {
+        "Red Component" : 0.87843137254000003,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.89803921568,
+        "Alpha Component" : 1,
+        "Green Component" : 0.87843137254000003
       },
-      "Cursor Color": {
-        "Red Component": 0.83137254901,
-        "Green Component": 0.55294117647,
-        "Blue Component": 0.30588235294,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Command" : "\/bin\/zsh -l -c claude",
+      "Ansi 5 Color" : {
+        "Red Component" : 0.72156862745000006,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.90196078431000004,
+        "Alpha Component" : 1,
+        "Green Component" : 0.47058823528999999
       },
-      "Cursor Text Color": {
-        "Red Component": 0.09803921568,
-        "Green Component": 0.09803921568,
-        "Blue Component": 0.12549019607,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Name" : "Claude Code",
+      "Non Ascii Font" : "MesloLGS-NF-Regular 13",
+      "Columns" : 200,
+      "Rows" : 50,
+      "Foreground Color" : {
+        "Red Component" : 0.87843137254000003,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.89803921568,
+        "Alpha Component" : 1,
+        "Green Component" : 0.87843137254000003
       },
-      "Selection Color": {
-        "Red Component": 0.20784313725,
-        "Green Component": 0.20784313725,
-        "Blue Component": 0.25098039215,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Ansi 4 Color" : {
+        "Red Component" : 0.40000000000000002,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.93725490196000005,
+        "Alpha Component" : 1,
+        "Green Component" : 0.61176470587999998
       },
-      "Selected Text Color": {
-        "Red Component": 0.87843137254,
-        "Green Component": 0.87843137254,
-        "Blue Component": 0.89803921568,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Vertical Spacing" : 1.1000000000000001,
+      "Tags" : [
+        "ai",
+        "claude"
+      ],
+      "Visual Bell" : false,
+      "Badge Text" : "Claude Code",
+      "Dynamic Profile Parent Name" : "Default",
+      "Ansi 10 Color" : {
+        "Red Component" : 0.63921568627000003,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.41960784312999999,
+        "Alpha Component" : 1,
+        "Green Component" : 0.82745098038999998
       },
-
-      "Ansi 0 Color": {
-        "Red Component": 0.15686274509,
-        "Green Component": 0.15686274509,
-        "Blue Component": 0.19607843137,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Silence Bell" : true,
+      "Ansi 3 Color" : {
+        "Red Component" : 0.83137254901000002,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.30588235293999999,
+        "Alpha Component" : 1,
+        "Green Component" : 0.55294117646999996
       },
-      "Ansi 1 Color": {
-        "Red Component": 0.89411764705,
-        "Green Component": 0.38431372549,
-        "Blue Component": 0.36078431372,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Ansi 12 Color" : {
+        "Red Component" : 0.52941176469999995,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.96470588234999999,
+        "Alpha Component" : 1,
+        "Green Component" : 0.70196078430999997
       },
-      "Ansi 2 Color": {
-        "Red Component": 0.54509803921,
-        "Green Component": 0.76470588235,
-        "Blue Component": 0.29019607843,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Ansi 14 Color" : {
+        "Red Component" : 0.45098039215000002,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.84313725490000002,
+        "Alpha Component" : 1,
+        "Green Component" : 0.78823529411000004
       },
-      "Ansi 3 Color": {
-        "Red Component": 0.83137254901,
-        "Green Component": 0.55294117647,
-        "Blue Component": 0.30588235294,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Title Components" : 514,
+      "AWDS Tab Directory" : "",
+      "Right Option Key Sends" : 2,
+      "Option Key Sends" : 2,
+      "Thin Strokes" : 0,
+      "BM Growl" : false,
+      "Ansi 2 Color" : {
+        "Red Component" : 0.54509803921,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.29019607843,
+        "Alpha Component" : 1,
+        "Green Component" : 0.76470588235000003
       },
-      "Ansi 4 Color": {
-        "Red Component": 0.40000000000,
-        "Green Component": 0.61176470588,
-        "Blue Component": 0.93725490196,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Ansi 9 Color" : {
+        "Red Component" : 0.93725490196000005,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.48627450979999998,
+        "Alpha Component" : 1,
+        "Green Component" : 0.50588235293999995
       },
-      "Ansi 5 Color": {
-        "Red Component": 0.72156862745,
-        "Green Component": 0.47058823529,
-        "Blue Component": 0.90196078431,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Guid" : "claude-code-dotfiles-profile",
+      "Custom Command" : "Yes",
+      "Selection Color" : {
+        "Red Component" : 0.20784313725,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.25098039215000001,
+        "Alpha Component" : 1,
+        "Green Component" : 0.20784313725
       },
-      "Ansi 6 Color": {
-        "Red Component": 0.34117647058,
-        "Green Component": 0.71372549019,
-        "Blue Component": 0.76862745098,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "AWDS Pane Directory" : "",
+      "Ansi 1 Color" : {
+        "Red Component" : 0.89411764704999996,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.36078431372000003,
+        "Alpha Component" : 1,
+        "Green Component" : 0.38431372548999998
       },
-      "Ansi 7 Color": {
-        "Red Component": 0.87843137254,
-        "Green Component": 0.87843137254,
-        "Blue Component": 0.89803921568,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Ansi 8 Color" : {
+        "Red Component" : 0.35294117647000001,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.39215686274,
+        "Alpha Component" : 1,
+        "Green Component" : 0.35294117647000001
       },
-      "Ansi 8 Color": {
-        "Red Component": 0.35294117647,
-        "Green Component": 0.35294117647,
-        "Blue Component": 0.39215686274,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Rewritable" : true,
+      "Background Color" : {
+        "Red Component" : 0.09803921568,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.12549019607,
+        "Alpha Component" : 1,
+        "Green Component" : 0.09803921568
       },
-      "Ansi 9 Color": {
-        "Red Component": 0.93725490196,
-        "Green Component": 0.50588235294,
-        "Blue Component": 0.48627450980,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "AWDS Window Directory" : "",
+      "Custom Tab Title" : "Claude Code",
+      "Ansi 0 Color" : {
+        "Red Component" : 0.15686274509000001,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.19607843137,
+        "Alpha Component" : 1,
+        "Green Component" : 0.15686274509000001
       },
-      "Ansi 10 Color": {
-        "Red Component": 0.63921568627,
-        "Green Component": 0.82745098039,
-        "Blue Component": 0.41960784313,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Ansi 7 Color" : {
+        "Red Component" : 0.87843137254000003,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.89803921568,
+        "Alpha Component" : 1,
+        "Green Component" : 0.87843137254000003
       },
-      "Ansi 11 Color": {
-        "Red Component": 0.88627450980,
-        "Green Component": 0.65098039215,
-        "Blue Component": 0.41960784313,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Custom Directory" : "Advanced",
+      "Cursor Text Color" : {
+        "Red Component" : 0.09803921568,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.12549019607,
+        "Alpha Component" : 1,
+        "Green Component" : 0.09803921568
       },
-      "Ansi 12 Color": {
-        "Red Component": 0.52941176470,
-        "Green Component": 0.70196078431,
-        "Blue Component": 0.96470588235,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Ansi 11 Color" : {
+        "Red Component" : 0.8862745098,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.41960784312999999,
+        "Alpha Component" : 1,
+        "Green Component" : 0.65098039215000003
       },
-      "Ansi 13 Color": {
-        "Red Component": 0.79607843137,
-        "Green Component": 0.59607843137,
-        "Blue Component": 0.93725490196,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Scrollback Lines" : 100000,
+      "Ansi 13 Color" : {
+        "Red Component" : 0.79607843137000001,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.93725490196000005,
+        "Alpha Component" : 1,
+        "Green Component" : 0.59607843137000005
       },
-      "Ansi 14 Color": {
-        "Red Component": 0.45098039215,
-        "Green Component": 0.78823529411,
-        "Blue Component": 0.84313725490,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
+      "Ansi 15 Color" : {
+        "Red Component" : 0.93725490196000005,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.95686274509000002,
+        "Alpha Component" : 1,
+        "Green Component" : 0.93725490196000005
       },
-      "Ansi 15 Color": {
-        "Red Component": 0.93725490196,
-        "Green Component": 0.93725490196,
-        "Blue Component": 0.95686274509,
-        "Alpha Component": 1,
-        "Color Space": "sRGB"
-      },
-
-      "Transparency": 0.0,
-      "Blur": false,
-      "Minimum Contrast": 0.0,
-
-      "Use Bold Font": true,
-      "Use Italic Font": true,
-      "ASCII Anti Aliased": true,
-      "Non-ASCII Anti Aliased": true,
-      "Use Non-ASCII Font": false,
-      "Thin Strokes": 0,
-
-      "Option Key Sends": 2,
-      "Right Option Key Sends": 2,
-      "Mouse Reporting": true,
-      "Unicode Version": 9,
-
-      "Title Components": 514,
-      "Custom Tab Title": "Claude Code",
-
-      "Silence Bell": true,
-      "BM Growl": false,
-      "Visual Bell": false,
-      "Flashing Bell": false
+      "Ansi 6 Color" : {
+        "Red Component" : 0.34117647058,
+        "Color Space" : "sRGB",
+        "Blue Component" : 0.76862745097999996,
+        "Alpha Component" : 1,
+        "Green Component" : 0.71372549018999998
+      }
     }
   ]
 }
