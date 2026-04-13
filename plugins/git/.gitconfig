@@ -110,3 +110,7 @@
 
 [includeIf "gitdir:~/Develop/adevinta/"]
   path = ~/.gitconfig.d/adevinta
+
+[user]
+	name = Albert Puigsech Galicia
+	email = albert@puigsech.com
