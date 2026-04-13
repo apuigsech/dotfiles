@@ -203,6 +203,21 @@ defaults write com.apple.ActivityMonitor ShowCategory -int 0
 defaults write com.apple.TextEdit RichText -int 0
 
 ###############################################################################
+# Local DNS (/etc/hosts)                                                      #
+###############################################################################
+
+hosts_entries=(
+    "127.0.0.2 ollama.local"
+)
+
+for entry in "${hosts_entries[@]}"; do
+    if ! grep -qF "$entry" /etc/hosts; then
+        log_info "Adding /etc/hosts entry: $entry"
+        echo "$entry" | sudo tee -a /etc/hosts >/dev/null
+    fi
+done
+
+###############################################################################
 # Apply changes                                                               #
 ###############################################################################
 
