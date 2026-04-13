@@ -6,7 +6,4 @@
 - create:
     - ~/bin
     - ~/.shell
-    - ~/.aliases
-    - ~/.env
-    - ~/.paths
 
