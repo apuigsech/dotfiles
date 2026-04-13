@@ -9,14 +9,4 @@ if [[ -n $has_docker ]]; then
     alias dex='docker exec -it'
     alias dprune='docker system prune -af'
 
-    open-webui-start() {
-        docker run -d -p 127.0.0.3:8080:8080 \
-            --add-host=ollama.local:host-gateway \
-            --name open-webui \
-            --restart unless-stopped \
-            -e OLLAMA_BASE_URL=http://ollama.local:11434 \
-            ghcr.io/open-webui/open-webui:main
-    }
-    alias open-webui-stop='docker stop open-webui && docker rm open-webui'
-    alias open-webui-update='open-webui-stop; docker pull ghcr.io/open-webui/open-webui:main && open-webui-start'
 fi
