@@ -203,11 +203,26 @@ defaults write com.apple.ActivityMonitor ShowCategory -int 0
 defaults write com.apple.TextEdit RichText -int 0
 
 ###############################################################################
+# Loopback aliases                                                            #
+###############################################################################
+
+PLIST_SRC="$(dirname "$0")/com.dotfiles.loopback-aliases.plist"
+PLIST_DST="/Library/LaunchDaemons/com.dotfiles.loopback-aliases.plist"
+
+if [[ -f "$PLIST_SRC" ]] && [[ ! -f "$PLIST_DST" ]]; then
+    log_info "Installing loopback alias LaunchDaemon (127.0.0.2)..."
+    sudo cp "$PLIST_SRC" "$PLIST_DST"
+    sudo chown root:wheel "$PLIST_DST"
+    sudo chmod 644 "$PLIST_DST"
+    sudo launchctl load "$PLIST_DST"
+fi
+
+###############################################################################
 # Local DNS (/etc/hosts)                                                      #
 ###############################################################################
 
 hosts_entries=(
-    "127.0.0.1 ollama.local"
+    "127.0.0.2 ollama.local"
 )
 
 for entry in "${hosts_entries[@]}"; do
