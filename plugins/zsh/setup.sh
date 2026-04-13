@@ -22,15 +22,15 @@ else
 fi
 
 # Install custom plugins
-declare -A custom_plugins=(
-    [zsh-autosuggestions]="https://github.com/zsh-users/zsh-autosuggestions"
-    [zsh-syntax-highlighting]="https://github.com/zsh-users/zsh-syntax-highlighting"
-)
-
-for plugin in "${!custom_plugins[@]}"; do
+for entry in \
+    "zsh-autosuggestions https://github.com/zsh-users/zsh-autosuggestions" \
+    "zsh-syntax-highlighting https://github.com/zsh-users/zsh-syntax-highlighting"
+do
+    plugin="${entry%% *}"
+    url="${entry#* }"
     if [[ ! -d "$ZSH_CUSTOM/plugins/$plugin" ]]; then
         log_info "Installing $plugin..."
-        git clone --depth=1 "${custom_plugins[$plugin]}" "$ZSH_CUSTOM/plugins/$plugin"
+        git clone --depth=1 "$url" "$ZSH_CUSTOM/plugins/$plugin"
     else
         log_info "$plugin already installed"
     fi
