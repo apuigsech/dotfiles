@@ -1,0 +1,18 @@
+{
+  "version" : 1,
+  "liveDataPerProfile" : [
+    {
+      "custom" : {
+        "_0" : {
+          "directoryBasename" : "Profile 1",
+          "machineID" : "C3184F86-F6E5-4180-8A85-AFD671F684BD"
+        }
+      }
+    },
+    {
+      "items" : [
+
+      ]
+    }
+  ]
+}

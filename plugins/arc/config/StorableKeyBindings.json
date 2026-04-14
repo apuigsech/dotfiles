@@ -1,0 +1,21 @@
+{
+  "version" : 1,
+  "userOverrides" : [
+    {
+      "action" : {
+        "name" : "Capture Full Page",
+        "identifier" : "captureFullPage"
+      },
+      "priority" : "low",
+      "state" : {
+        "valid" : {
+          "_0" : {
+            "deviceIndependentModifierFlags" : 1179648,
+            "keyEquivalent" : "0"
+          }
+        }
+      },
+      "source" : "userDefined"
+    }
+  ]
+}

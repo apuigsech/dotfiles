@@ -1,0 +1,103 @@
+{
+  "version" : 3,
+  "profiles" : [
+    {
+      "persistedPreviewsState" : {
+        "previews" : [
+          {
+            "gcalendar" : true
+          },
+          {
+            "metadata" : {
+              "gcalendar" : {
+                "accounts" : {
+
+                },
+                "currentDate" : 733172765.047436
+              }
+            },
+            "lastRefreshed" : 733172765.047436
+          }
+        ]
+      },
+      "id" : {
+        "default" : {
+
+        }
+      }
+    },
+    {
+      "persistedPreviewsState" : {
+        "previews" : [
+          {
+            "gcalendar" : true
+          },
+          {
+            "lastRefreshed" : 733172765.047471,
+            "metadata" : {
+              "gcalendar" : {
+                "currentDate" : 733172765.047471,
+                "accounts" : {
+
+                }
+              }
+            }
+          }
+        ]
+      },
+      "id" : {
+        "custom" : {
+          "_0" : {
+            "machineID" : "C3184F86-F6E5-4180-8A85-AFD671F684BD",
+            "directoryBasename" : "Profile 1"
+          }
+        }
+      }
+    },
+    {
+      "id" : {
+        "custom" : {
+          "_0" : {
+            "machineID" : "C3184F86-F6E5-4180-8A85-AFD671F684BD",
+            "directoryBasename" : "Profile 3"
+          }
+        }
+      },
+      "persistedPreviewsState" : {
+        "previews" : [
+
+        ]
+      }
+    },
+    {
+      "id" : {
+        "custom" : {
+          "_0" : {
+            "directoryBasename" : "Profile 4",
+            "machineID" : "C3184F86-F6E5-4180-8A85-AFD671F684BD"
+          }
+        }
+      },
+      "persistedPreviewsState" : {
+        "previews" : [
+
+        ]
+      }
+    },
+    {
+      "persistedPreviewsState" : {
+        "previews" : [
+
+        ]
+      },
+      "id" : {
+        "custom" : {
+          "_0" : {
+            "directoryBasename" : "Profile 5",
+            "machineID" : "C3184F86-F6E5-4180-8A85-AFD671F684BD"
+          }
+        }
+      }
+    }
+  ]
+}

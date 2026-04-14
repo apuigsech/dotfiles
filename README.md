@@ -184,6 +184,28 @@ The dotfiles system includes comprehensive plugin support:
 - **bluereset**: Bluetooth reset utility for macOS connectivity issues
 - **renicer**: Process priority management tool for system optimization
 
+### Manual Plugins
+
+These plugins are **not included in `--all`** because they have prerequisites that must be met before installation.
+
+#### `arc` — Arc browser configuration
+
+Migrates Air Traffic Control rules, profiles, and keybindings across machines.
+Not included in `--all` because Arc must have been launched at least once on the
+destination machine before the plugin can run (it needs Arc's generated `machineID`).
+
+```bash
+# On the source machine — snapshot current Arc config into the repo:
+plugins/arc/export.sh
+git add plugins/arc/config/ && git commit -m "chore(arc): update config"
+
+# On the destination machine — Arc must have been opened at least once first:
+./dotfiles install arc
+```
+
+Extensions cannot be installed automatically. Reference lists per profile are in
+`plugins/arc/extensions/*.lst`.
+
 ### Plugin Features
 
 Each plugin supports:

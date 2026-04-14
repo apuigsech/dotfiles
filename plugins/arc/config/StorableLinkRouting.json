@@ -1,0 +1,149 @@
+{
+  "defaultDestination" : {
+    "littleArc" : {
+      "_0" : {
+        "mostRecent" : {
+
+        }
+      }
+    }
+  },
+  "rules" : [
+    {
+      "sourceComponents" : [
+        {
+          "id" : "045FF108-9E36-47AD-A980-3FF61FA0D083",
+          "componentType" : {
+            "urlMatch" : {
+              "_0" : {
+                "matches" : {
+
+                }
+              },
+              "_1" : "instagram.com"
+            }
+          }
+        }
+      ],
+      "id" : "67847C93-8A52-4D29-81EB-8B759C03883B",
+      "destination" : {
+        "space" : {
+          "_0" : {
+            "space" : {
+              "_0" : "52EEEB07-7188-4FA4-97A9-B18DD5B2C009"
+            }
+          }
+        }
+      }
+    },
+    {
+      "sourceComponents" : [
+        {
+          "componentType" : {
+            "urlMatch" : {
+              "_0" : {
+                "contains" : {
+
+                }
+              },
+              "_1" : "twitter.com"
+            }
+          },
+          "id" : "D0215D3B-5803-4B02-BEFC-C867BFFCEBE4"
+        }
+      ],
+      "id" : "DA2DF152-FD33-407D-9C31-71122241DBDA",
+      "destination" : {
+        "space" : {
+          "_0" : {
+            "space" : {
+              "_0" : "52EEEB07-7188-4FA4-97A9-B18DD5B2C009"
+            }
+          }
+        }
+      }
+    },
+    {
+      "sourceComponents" : [
+        {
+          "id" : "5483689D-F31D-41E6-BA25-CCBE044C7461",
+          "componentType" : {
+            "urlMatch" : {
+              "_1" : "linkedin.com",
+              "_0" : {
+                "contains" : {
+
+                }
+              }
+            }
+          }
+        }
+      ],
+      "id" : "C2D1EBCD-079F-49BB-8E5A-28895CAC49DA",
+      "destination" : {
+        "space" : {
+          "_0" : {
+            "space" : {
+              "_0" : "52EEEB07-7188-4FA4-97A9-B18DD5B2C009"
+            }
+          }
+        }
+      }
+    },
+    {
+      "sourceComponents" : [
+        {
+          "id" : "72ECBA62-5A4F-41D8-9F1A-6388CE021DE6",
+          "componentType" : {
+            "urlMatch" : {
+              "_1" : "mpi-internal",
+              "_0" : {
+                "contains" : {
+
+                }
+              }
+            }
+          }
+        }
+      ],
+      "id" : "1BBFD58D-E81B-49C7-8749-374595947341",
+      "destination" : {
+        "space" : {
+          "_0" : {
+            "space" : {
+              "_0" : "834024C3-2DC9-431E-9A45-19EFBCBD39AC"
+            }
+          }
+        }
+      }
+    },
+    {
+      "sourceComponents" : [
+        {
+          "id" : "337FAA69-FB51-44BC-B860-B28F22D78157",
+          "componentType" : {
+            "urlMatch" : {
+              "_1" : "d-9367007666.awsapps.com",
+              "_0" : {
+                "contains" : {
+
+                }
+              }
+            }
+          }
+        }
+      ],
+      "id" : "B9723564-6E4F-4AB6-A428-3EFE5AFA5355",
+      "destination" : {
+        "space" : {
+          "_0" : {
+            "space" : {
+              "_0" : "834024C3-2DC9-431E-9A45-19EFBCBD39AC"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "version" : 1
+}
