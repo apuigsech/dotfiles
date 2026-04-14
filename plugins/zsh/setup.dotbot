@@ -6,3 +6,4 @@
 - link:
     ~/.zsh: .zsh
     ~/.zshrc: .zshrc
+    ~/.warprc: warprc
