@@ -1,11 +1,15 @@
 # Core CLI utilities
 brew "bat"
 brew "coreutils"
+brew "duf"
+brew "dust"
 brew "eza"
 brew "fd"
+brew "findutils"
 brew "fzf"
 brew "grc"
 brew "jq"
+brew "procs"
 brew "ripgrep"
 brew "tldr"
 brew "tree"
@@ -19,9 +23,13 @@ brew "dockutil"
 
 # Git
 brew "gh"
+brew "git"
 brew "git-delta"
 brew "pinentry-mac"
 brew "tig"
+
+# Editors
+brew "neovim"
 
 # Fonts
 cask "font-meslo-lg-nerd-font"

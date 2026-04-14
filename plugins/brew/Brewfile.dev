@@ -1,7 +1,6 @@
 # Languages & version managers
-brew "fnm"
 brew "go"
-brew "pyenv"
+brew "mise"
 brew "uv"
 
 # Containers
@@ -10,10 +9,11 @@ brew "docker-compose"
 cask "orbstack"
 
 # Tools
-brew "1password-cli"
+cask "1password-cli"
+brew "awscli"
 brew "direnv"
 brew "httpie"
-brew "pre-commit"
+brew "pnpm"
 
 # Editors & IDEs
 cask "visual-studio-code"

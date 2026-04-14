@@ -8,4 +8,5 @@ cask "vlc"
 
 # Utilities
 brew "blueutil"
+cask "nordvpn"
 cask "tunnelblick"

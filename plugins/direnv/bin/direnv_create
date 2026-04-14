@@ -6,13 +6,9 @@ set -euo pipefail
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly SUPPORTED_TYPES="python, node"
 
-# Get default Node version, with error handling
+# Get default Node version
 get_node_default_version() {
-    if command -v nodeenv >/dev/null 2>&1; then
-        nodeenv --list 2>/dev/null | tail -n 1 | awk '{print $NF}' || echo "latest"
-    else
-        echo "latest"
-    fi
+    echo "lts"
 }
 
 # Get default Python version
@@ -50,42 +46,6 @@ deploy_envrc() {
 # Function to create a Python virtual environment
 create_python_env() {
     local version="${1:-}"
-    local python_cmd="python3"
-
-    # If version is specified, try to find the appropriate Python binary
-    if [[ -n "$version" ]]; then
-        # Try pyenv first if available
-        if command -v pyenv >/dev/null 2>&1; then
-            if pyenv versions --bare | grep -q "^${version}"; then
-                python_cmd="$(pyenv root)/versions/${version}/bin/python"
-                echo "Using Python ${version} from pyenv"
-            else
-                echo "Error: Python ${version} not found in pyenv" >&2
-                echo "Available versions:" >&2
-                pyenv versions --bare >&2
-                exit 1
-            fi
-        else
-            # Try to find python binary with specific version
-            local version_cmd="python${version}"
-            if command -v "$version_cmd" >/dev/null 2>&1; then
-                python_cmd="$version_cmd"
-                echo "Using ${version_cmd}"
-            else
-                echo "Error: ${version_cmd} not found in PATH and pyenv is not installed" >&2
-                echo "Available Python versions:" >&2
-                ls -1 /usr/bin/python* 2>/dev/null || echo "  None found" >&2
-                exit 1
-            fi
-        fi
-    else
-        echo "Using default Python version: $PYTHON_DEFAULT_VERSION"
-    fi
-
-    if ! command -v "$python_cmd" >/dev/null 2>&1 && [[ ! -x "$python_cmd" ]]; then
-        echo "Error: $python_cmd is not installed or not in PATH" >&2
-        exit 1
-    fi
 
     if [[ -d ".venv" ]]; then
         echo "Warning: .venv directory already exists, removing it first" >&2
@@ -93,31 +53,49 @@ create_python_env() {
     fi
 
     echo "Creating Python virtual environment..."
-    "$python_cmd" -m venv .venv
+
+    if [[ -n "$version" ]]; then
+        if command -v mise >/dev/null 2>&1; then
+            echo "Using Python ${version} via mise"
+            mise exec "python@${version}" -- python3 -m venv .venv
+        else
+            local version_cmd="python${version}"
+            if command -v "$version_cmd" >/dev/null 2>&1; then
+                echo "Using ${version_cmd}"
+                "$version_cmd" -m venv .venv
+            else
+                echo "Error: ${version_cmd} not found in PATH and mise is not installed" >&2
+                exit 1
+            fi
+        fi
+    else
+        echo "Using default Python version: $PYTHON_DEFAULT_VERSION"
+        python3 -m venv .venv
+    fi
+
     deploy_envrc
     echo "Python virtual environment created successfully"
 }
 
-# Function to create a Node virtual environment
+# Function to create a Node environment via mise
 create_node_env() {
     local version="${1:-$NODE_DEFAULT_VERSION}"
 
-    echo "Creating Node virtual environment with version: $version"
-
-    if ! command -v nodeenv >/dev/null 2>&1; then
-        echo "Error: nodeenv is not installed or not in PATH" >&2
-        echo "Install it with: pip install nodeenv" >&2
+    if ! command -v mise >/dev/null 2>&1; then
+        echo "Error: mise is not installed or not in PATH" >&2
         exit 1
     fi
 
-    if [[ -d ".venv" ]]; then
-        echo "Warning: .venv directory already exists, removing it first" >&2
-        rm -rf ".venv"
-    fi
+    echo "Creating Node environment with version: $version"
 
-    nodeenv .venv --node="$version" --force
+    cat > .mise.toml << EOF
+[tools]
+node = "${version}"
+EOF
+
+    mise install
     deploy_envrc
-    echo "Node virtual environment created successfully"
+    echo "Node environment created successfully (.mise.toml)"
 }
 
 # Function to display usage information
@@ -129,7 +107,7 @@ Create a virtual environment with direnv integration.
 
 Types:
   python, py    Create a Python virtual environment [version]
-  node          Create a Node.js virtual environment [version]
+  node          Create a Node.js environment via mise [version]
 
 Options:
   version       Python/Node.js version to use
@@ -138,14 +116,14 @@ Options:
 
 Examples:
   $SCRIPT_NAME python           # Use default Python ($PYTHON_DEFAULT_VERSION)
-  $SCRIPT_NAME python 3.11      # Use Python 3.11 (pyenv or python3.11 binary)
-  $SCRIPT_NAME python 3.12.2    # Use specific Python version from pyenv
+  $SCRIPT_NAME python 3.11      # Use Python 3.11 via mise (fallback: python3.11 binary)
+  $SCRIPT_NAME python 3.12.2    # Use specific Python version via mise
   $SCRIPT_NAME node             # Use default Node ($NODE_DEFAULT_VERSION)
-  $SCRIPT_NAME node 18.17.0     # Use Node 18.17.0
+  $SCRIPT_NAME node 22          # Use Node 22 via mise
 
 Notes:
-  - For Python: Tries pyenv first, falls back to pythonX.Y binary in PATH
-  - For Node: Requires nodeenv to be installed (pip install nodeenv)
+  - For Python: Uses mise exec, falls back to pythonX.Y binary in PATH
+  - For Node: Creates .mise.toml and runs mise install (requires mise)
 
 Supported types: $SUPPORTED_TYPES
 EOF
