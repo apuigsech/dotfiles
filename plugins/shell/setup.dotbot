@@ -12,6 +12,3 @@
     ~/.env: .env
     ~/.paths: .paths
     ~/.shellrc: .shellrc
-    ~/bin/aws-op-credentials:
-      path: bin/aws-op-credentials
-      mode: 0750
