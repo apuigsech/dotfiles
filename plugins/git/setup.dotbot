@@ -2,10 +2,16 @@
     link:
       relink: true
 
+- create:
+    - ~/.gnupg
+
 - link:
     ~/.gitconfig: .gitconfig
     ~/.gitconfig.d: .gitconfig.d
     ~/.gitignore: .gitignore
+    ~/.gnupg/gpg-agent.conf:
+      path: gpg-agent.conf
+      force: true
     ~/bin/git-bulk:
       path: bin/git-bulk
       mode: 0750
