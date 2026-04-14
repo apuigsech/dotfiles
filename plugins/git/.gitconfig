@@ -87,6 +87,15 @@
 [tag]
 	gpgsign = true
 
+[gpg]
+	format = ssh
+
+[gpg "ssh"]
+	program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
+
+[user]
+	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM1pdYBkxTAjgxCPMELySHgagRlxtV2S/Sy0cfn6f7jV
+
 [core]
     editor = subl -n -w
     pager = delta
@@ -101,9 +110,6 @@
 # For macOS only
 [credential]
     helper = osxkeychain
-
-[gpg]
-	program = gpg
 
 [includeIf "gitdir:~/Develop/"]
   path = ~/.gitconfig.d/personal

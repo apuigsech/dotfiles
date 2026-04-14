@@ -1,4 +1,4 @@
 [user]
 	name = Albert Puigsech
 	email = albert@puigsech.com
-	signingkey = 5505F9A9C62EB7E13B973975704255ABCB4876D2
+	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM1pdYBkxTAjgxCPMELySHgagRlxtV2S/Sy0cfn6f7jV
