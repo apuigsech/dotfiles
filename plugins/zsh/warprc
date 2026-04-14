@@ -1,5 +1,2 @@
-# wd bookmarks
-~
-~/.dotfiles
-devgh ~/Develop/github.com
-devtemp ~/Develop/temp
+devgh:~/Develop/github.com
+devtemp:~/Develop/temp
