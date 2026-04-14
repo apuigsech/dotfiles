@@ -35,3 +35,16 @@ do
         log_info "$plugin already installed"
     fi
 done
+
+# Configure wd bookmarks
+WD_CONFIG="${XDG_DATA_HOME:-$HOME/.local/share}/wd/warprc"
+if [[ ! -f "$WD_CONFIG" ]]; then
+    log_info "Configuring wd bookmarks..."
+    mkdir -p "$(dirname "$WD_CONFIG")"
+    # Use the absolute path to the warprc file in this repo
+    ln -s "$(realpath "$(dirname "$(realpath "$0")")/warprc")" "$WD_CONFIG"
+    log_info "wd bookmarks configured with defaults."
+else
+    log_info "wd bookmarks already configured."
+fi
+
