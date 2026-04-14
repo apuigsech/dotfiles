@@ -10,16 +10,13 @@ fi
 
 # Check 1Password app
 if [[ ! -d "/Applications/1Password.app" ]]; then
-    log_warn "1Password app not found. Install it from: https://1password.com/downloads/mac/"
-else
-    log_info "1Password app installed"
+    log_warn "1Password app not found. Install it and sign in first."
+    exit 0
 fi
 
 # Check op CLI
 if ! has_cmd op; then
     log_warn "1Password CLI (op) not found. Install with: brew install 1password-cli"
-else
-    log_info "1Password CLI installed: $(op --version)"
 fi
 
 # Check SSH agent socket
@@ -31,9 +28,60 @@ else
     log_warn "Enable it in: 1Password > Settings > Developer > Use the SSH agent"
 fi
 
-# Check op-ssh-sign
-if [[ -f "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" ]]; then
-    log_info "op-ssh-sign available for commit signing"
-else
-    log_warn "op-ssh-sign not found -- git commit signing via 1Password won't work"
+# Apply 1Password settings
+SETTINGS_FILE=~/Library/Group\ Containers/2BUA8C4S2C.com.1password/Library/Application\ Support/1Password/Data/settings/settings.json
+
+if [[ ! -f "$SETTINGS_FILE" ]]; then
+    log_warn "1Password settings file not found. Open 1Password first."
+    exit 0
 fi
+
+log_info "Applying 1Password settings..."
+
+python3 - "$SETTINGS_FILE" <<'EOF'
+import json, sys
+
+settings_file = sys.argv[1]
+
+with open(settings_file, 'r') as f:
+    settings = json.load(f)
+
+desired = {
+    "app.theme": "dark",
+    "appearance.interfaceDensity": "compact",
+    "app.zoomLevel": 90,
+    "appearance.useSystemAccentColor": False,
+    "security.authenticatedUnlock.enabled": True,
+    "security.authenticatedUnlock.appleTouchId": True,
+    "security.autolock.minutes": 240,
+    "privacy.checkHibp": True,
+    "passwordGenerator.size.characters": 16,
+    "passwordGenerator.type": "password-generator-menu-entry-type-random-password",
+    "passwordGenerator.includeSymbols": True,
+    "sshAgent.enabled": True,
+    "sshAgent.sshAuthorizatonModel": "application",
+    "sidebar.showCategories": False,
+    "sidebar.showTags": True,
+    "browsers.extension.enabled": True,
+    "updates.updateChannel": "PRODUCTION",
+}
+
+changed = []
+for key, value in desired.items():
+    if settings.get(key) != value:
+        settings[key] = value
+        # Remove stale authTag so 1Password regenerates it
+        if 'authTags' in settings and key in settings['authTags']:
+            del settings['authTags'][key]
+        changed.append(key)
+
+with open(settings_file, 'w') as f:
+    json.dump(settings, f, indent=4)
+
+if changed:
+    print(f"Updated settings: {', '.join(changed)}")
+else:
+    print("Settings already up to date")
+EOF
+
+log_info "1Password settings applied. Restart 1Password to apply changes."
