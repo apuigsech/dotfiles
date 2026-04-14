@@ -20,8 +20,8 @@ brew "dockutil"
 # Git
 brew "gh"
 brew "git-delta"
+brew "pinentry-mac"
 brew "tig"
-
 
 # Fonts
 cask "font-meslo-lg-nerd-font"
