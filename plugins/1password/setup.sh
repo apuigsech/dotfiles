@@ -17,6 +17,23 @@ fi
 # Check op CLI
 if ! has_cmd op; then
     log_warn "1Password CLI (op) not found. Install with: brew install 1password-cli"
+else
+    log_info "1Password CLI installed: $(op --version)"
+
+    # Check configured accounts
+    for entry in \
+        "ontopix:ontopix account (albert.puigsech@ontopix.ai)" \
+        "personal:personal/family account (albert@puigsech.com)"
+    do
+        shorthand="${entry%%:*}"
+        description="${entry#*:}"
+        if op account list 2>/dev/null | grep -q "$shorthand"; then
+            log_info "1Password CLI account configured: $shorthand"
+        else
+            log_warn "1Password CLI account not configured: $shorthand ($description)"
+            log_warn "  Run: op account add --shorthand $shorthand"
+        fi
+    done
 fi
 
 # Check SSH agent socket
