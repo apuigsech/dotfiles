@@ -1,0 +1,4 @@
+if command -v aws &>/dev/null && command -v op &>/dev/null; then
+    alias aws="op plugin run -- aws"
+    export OP_PLUGIN_ALIASES_SOURCED=1
+fi
