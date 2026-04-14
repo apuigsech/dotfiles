@@ -22,9 +22,6 @@ brew "gh"
 brew "git-delta"
 brew "tig"
 
-# Security
-brew "gnupg"
-brew "gnutls"
 
 # Fonts
 cask "font-meslo-lg-nerd-font"
