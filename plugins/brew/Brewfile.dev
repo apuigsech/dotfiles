@@ -9,9 +9,11 @@ brew "docker-compose"
 cask "orbstack"
 
 # Tools
+tap "go-task/tap"
 cask "1password-cli"
 brew "awscli"
 brew "direnv"
+brew "go-task/tap/go-task"
 brew "httpie"
 brew "pnpm"
 
