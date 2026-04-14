@@ -10,6 +10,7 @@ brew "docker-compose"
 cask "orbstack"
 
 # Tools
+brew "1password-cli"
 brew "direnv"
 brew "httpie"
 brew "pre-commit"
