@@ -1,0 +1,29 @@
+[default]
+signature_version = s3v4
+region = eu-west-1
+credential_process = ~/bin/aws-op-credentials "AWS default" personal
+
+[profile amplify-admin]
+region = us-west-2
+
+[profile claude]
+sso_start_url = https://d-9367007666.awsapps.com/start
+sso_region = eu-west-1
+sso_account_id = 490863270076
+sso_role_name = developer
+region = eu-west-1
+
+[profile claude-admin]
+sso_start_url = https://d-9367007666.awsapps.com/start
+sso_region = eu-west-1
+sso_account_id = 490863270076
+sso_role_name = admin
+region = eu-west-1
+
+[profile ontopix-dev]
+region = eu-central-1
+credential_process = ~/bin/aws-op-credentials "AWS ontopix-dev" ontopix
+
+[profile itkg-dev]
+region = eu-central-1
+credential_process = ~/bin/aws-op-credentials "AWS itkg-dev" personal

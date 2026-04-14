@@ -1,0 +1,10 @@
+- defaults:
+    link:
+      relink: true
+      force: true
+
+- create:
+    - ~/.aws
+
+- link:
+    ~/.aws/config: config
