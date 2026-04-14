@@ -4,19 +4,13 @@ set -euo pipefail
 
 # Constants
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly SUPPORTED_TYPES="python, node"
-
-# Get default Node version
-get_node_default_version() {
-    echo "lts"
-}
+readonly SUPPORTED_TYPES="envrc, python"
 
 # Get default Python version
 get_python_default_version() {
     python3 --version 2>/dev/null | awk '{print $2}' || echo "3"
 }
 
-readonly NODE_DEFAULT_VERSION=$(get_node_default_version)
 readonly PYTHON_DEFAULT_VERSION=$(get_python_default_version)
 
 # Function to deploy .envrc file
@@ -77,53 +71,30 @@ create_python_env() {
     echo "Python virtual environment created successfully"
 }
 
-# Function to create a Node environment via mise
-create_node_env() {
-    local version="${1:-$NODE_DEFAULT_VERSION}"
-
-    if ! command -v mise >/dev/null 2>&1; then
-        echo "Error: mise is not installed or not in PATH" >&2
-        exit 1
-    fi
-
-    echo "Creating Node environment with version: $version"
-
-    cat > .mise.toml << EOF
-[tools]
-node = "${version}"
-EOF
-
-    mise install
-    deploy_envrc
-    echo "Node environment created successfully (.mise.toml)"
-}
-
 # Function to display usage information
 show_usage() {
     cat << EOF
 Usage: $SCRIPT_NAME <type> [version]
 
-Create a virtual environment with direnv integration.
+Set up direnv integration for the current directory.
 
 Types:
-  python, py    Create a Python virtual environment [version]
-  node          Create a Node.js environment via mise [version]
+  envrc         Deploy .envrc only (auto-loads .env files)
+  python, py    Create a Python virtual environment + .envrc [version]
 
 Options:
-  version       Python/Node.js version to use
-                Python default: $PYTHON_DEFAULT_VERSION
-                Node default: $NODE_DEFAULT_VERSION
+  version       Python version to use (only for python type)
+                Default: $PYTHON_DEFAULT_VERSION
 
 Examples:
+  $SCRIPT_NAME envrc            # Just deploy .envrc (Go, Terraform, Rust, etc.)
   $SCRIPT_NAME python           # Use default Python ($PYTHON_DEFAULT_VERSION)
   $SCRIPT_NAME python 3.11      # Use Python 3.11 via mise (fallback: python3.11 binary)
   $SCRIPT_NAME python 3.12.2    # Use specific Python version via mise
-  $SCRIPT_NAME node             # Use default Node ($NODE_DEFAULT_VERSION)
-  $SCRIPT_NAME node 22          # Use Node 22 via mise
 
 Notes:
   - For Python: Uses mise exec, falls back to pythonX.Y binary in PATH
-  - For Node: Creates .mise.toml and runs mise install (requires mise)
+  - For Node: Use \`mise use node@<version>\` directly
 
 Supported types: $SUPPORTED_TYPES
 EOF
@@ -147,11 +118,11 @@ main() {
 
     # Determine the type of virtual environment to create
     case "$1" in
+        envrc)
+            deploy_envrc
+            ;;
         python|py)
             create_python_env "${@:2}"
-            ;;
-        node)
-            create_node_env "${@:2}"
             ;;
         *)
             echo "Error: Unsupported environment type: $1" >&2
