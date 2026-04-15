@@ -1,4 +1,5 @@
 .env
+!plugins/shell/.env/
 .envrc
 .venv
 .local
