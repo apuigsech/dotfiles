@@ -7,3 +7,4 @@
     ~/.wgetrc: .wgetrc
     ~/CLAUDE.md: CLAUDE.md
     ~/AGENTS.md: AGENTS.md
+    ~/.aws/op-credentials.sh: .aws/op-credentials.sh
