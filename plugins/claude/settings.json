@@ -3,7 +3,8 @@
   "env": {
     "CLAUDE_CODE_USE_BEDROCK": "1",
     "AWS_PROFILE": "claude",
-    "AWS_REGION": "eu-west-1"
+    "AWS_REGION": "eu-west-1",
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "op://Private/GitHub/token"
   },
   "hooks": {
     "SessionStart": [
@@ -12,6 +13,10 @@
           {
             "type": "command",
             "command": "printf '\\033]1337;SetProfile=claude\\a' > /dev/tty 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "echo $(op read --account MSUA4CBFK5ABDN2WY4Q64LCPJI \"op://Private/GitHub/token\") | /opt/homebrew/bin/gh auth login --with-token 2>/dev/null || true"
           }
         ]
       }
@@ -21,7 +26,8 @@
     "superpowers@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true
+    "claude-md-management@claude-plugins-official": true,
+    "github@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "ontopix-plugins": {
@@ -29,8 +35,15 @@
         "source": "directory",
         "path": "/Users/apuigsech/Develop/github.com/ontopix/claude-setup"
       }
+    },
+    "agent-plugins-for-aws": {
+      "source": {
+        "source": "github",
+        "repo": "awslabs/agent-plugins"
+      }
     }
   },
   "effortLevel": "low",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "model": "opus"
 }

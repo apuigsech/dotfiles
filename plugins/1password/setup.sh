@@ -27,14 +27,13 @@ else
         echo 'export OP_PLUGIN_ALIASES_SOURCED=1' > "$PLUGINS_FILE"
     fi
 
-    # gh — uses personal 1Password account
-    PERSONAL_ACCOUNT="MSUA4CBFK5ABDN2WY4Q64LCPJI"
-    if has_cmd gh; then
-        if grep -q "alias gh=" "$PLUGINS_FILE" 2>/dev/null; then
-            log_info "1Password shell plugin already configured: gh"
+    # claude — inject secrets via op run
+    if has_cmd claude; then
+        if grep -q "alias claude=" "$PLUGINS_FILE" 2>/dev/null; then
+            log_info "1Password shell plugin already configured: claude"
         else
-            echo "alias gh='GH_TOKEN=\$(op read \"op://Private/GitHub/personal-access-token\" --account $PERSONAL_ACCOUNT) command gh'" >> "$PLUGINS_FILE"
-            log_info "1Password shell plugin configured: gh"
+            echo "alias claude='op run --account $PERSONAL_ACCOUNT -- claude'" >> "$PLUGINS_FILE"
+            log_info "1Password shell plugin configured: claude"
         fi
     fi
 
