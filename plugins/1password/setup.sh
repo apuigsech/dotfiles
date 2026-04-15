@@ -20,6 +20,33 @@ if ! has_cmd op; then
 else
     log_info "1Password CLI installed: $(op --version)"
 
+    # Configure shell plugins
+    PLUGINS_FILE=~/.config/op/plugins.sh
+    mkdir -p "$(dirname "$PLUGINS_FILE")"
+    if [[ ! -f "$PLUGINS_FILE" ]]; then
+        echo 'export OP_PLUGIN_ALIASES_SOURCED=1' > "$PLUGINS_FILE"
+    fi
+
+    # gh — uses personal 1Password account
+    PERSONAL_ACCOUNT="MSUA4CBFK5ABDN2WY4Q64LCPJI"
+    if has_cmd gh; then
+        if grep -q "alias gh=" "$PLUGINS_FILE" 2>/dev/null; then
+            log_info "1Password shell plugin already configured: gh"
+        else
+            echo "alias gh='GH_TOKEN=\$(op read \"op://Private/GitHub/personal-access-token\" --account $PERSONAL_ACCOUNT) command gh'" >> "$PLUGINS_FILE"
+            log_info "1Password shell plugin configured: gh"
+        fi
+    fi
+
+    # aws — use op plugin init (works without account issues)
+    if has_cmd aws; then
+        if grep -q "alias aws=" "$PLUGINS_FILE" 2>/dev/null; then
+            log_info "1Password shell plugin already configured: aws"
+        else
+            op plugin init aws --yes 2>/dev/null || log_warn "Could not auto-init plugin for aws — run: op plugin init aws"
+        fi
+    fi
+
     # Check configured accounts
     for entry in \
         "ontopix:ontopix account (albert.puigsech@ontopix.ai)" \
