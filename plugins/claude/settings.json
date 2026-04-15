@@ -3,7 +3,7 @@
   "env": {
     "CLAUDE_CODE_USE_BEDROCK": "1",
     "AWS_PROFILE": "claude",
-    "AWS_REGION": "eu-west-1",
+    "AWS_REGION": "eu-west-1"
   },
   "hooks": {
     "SessionStart": [
@@ -22,6 +22,14 @@
     "context7@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "ontopix-plugins": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/apuigsech/Develop/github.com/ontopix/claude-setup"
+      }
+    }
   },
   "effortLevel": "low",
   "skipDangerousModePermissionPrompt": true
