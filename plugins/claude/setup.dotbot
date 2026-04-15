@@ -1,0 +1,12 @@
+- defaults:
+    link:
+      relink: true
+      force: true
+      create: true
+
+- create:
+    - ~/.claude
+
+- link:
+    ~/.claude/settings.json: settings.json
+    ~/.claude/settings.ollama.json: settings.ollama.json

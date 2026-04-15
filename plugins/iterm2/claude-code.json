@@ -23,8 +23,8 @@
         "Alpha Component" : 1,
         "Green Component" : 0.47058823528999999
       },
-      "Name" : "Claude Code",
-      "Non Ascii Font" : "MesloLGSNerdFontMono-Regular 13",
+      "Name" : "claude",
+      "Non Ascii Font" : "Menlo-Regular 11",
       "Columns" : 200,
       "Rows" : 50,
       "Foreground Color" : {
@@ -98,6 +98,7 @@
         "Alpha Component" : 1,
         "Green Component" : 0.50588235293999995
       },
+      "Use Separate Colors for Light and Dark Mode" : false,
       "Guid" : "claude-code-dotfiles-profile",
       "Custom Command" : "Yes",
       "Selection Color" : {

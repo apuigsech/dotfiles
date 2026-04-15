@@ -1,3 +1,7 @@
 if command -v open-webui &>/dev/null; then
     alias webui='open-webui serve --host 127.0.0.3 --port 8080'
 fi
+
+if command -v ollama &>/dev/null; then
+    alias claude-ollama='ollama launch claude -- --settings ~/.claude/settings.ollama.json'
+fi

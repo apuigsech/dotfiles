@@ -1,0 +1,26 @@
+{
+  "env": {
+    "CLAUDE_CODE_USE_BEDROCK": "0",
+    "AWS_PROFILE": "",
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\033]1337;SetProfile=claude\\a' > /dev/tty 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
+  },
+  "effortLevel": "low",
+  "skipDangerousModePermissionPrompt": true
+}
