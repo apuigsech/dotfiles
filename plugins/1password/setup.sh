@@ -37,15 +37,6 @@ else
         fi
     fi
 
-    # aws — use op plugin init (works without account issues)
-    if has_cmd aws; then
-        if grep -q "alias aws=" "$PLUGINS_FILE" 2>/dev/null; then
-            log_info "1Password shell plugin already configured: aws"
-        else
-            op plugin init aws --yes 2>/dev/null || log_warn "Could not auto-init plugin for aws — run: op plugin init aws"
-        fi
-    fi
-
     # Check configured accounts
     for entry in \
         "ontopix:ontopix account (albert.puigsech@ontopix.ai)" \
