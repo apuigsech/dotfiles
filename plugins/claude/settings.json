@@ -16,7 +16,7 @@
           },
           {
             "type": "command",
-            "command": "echo $(op read --account MSUA4CBFK5ABDN2WY4Q64LCPJI \"op://Private/GitHub/token\") | /opt/homebrew/bin/gh auth login --with-token 2>/dev/null || true"
+            "command": "/opt/homebrew/bin/gh auth status 2>/dev/null || echo $(op read --account MSUA4CBFK5ABDN2WY4Q64LCPJI \"op://Private/GitHub/token\") | /opt/homebrew/bin/gh auth login --with-token 2>/dev/null || true"
           }
         ]
       }
