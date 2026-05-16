@@ -4,8 +4,13 @@
     "CLAUDE_CODE_USE_BEDROCK": "1",
     "AWS_PROFILE": "claude",
     "AWS_REGION": "eu-west-1",
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "op://Private/GitHub/token"
+    "OP_SESSION_CACHE": "true"
   },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "model": "opus",
   "hooks": {
     "SessionStart": [
       {
@@ -27,7 +32,14 @@
     "context7@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
-    "github@claude-plugins-official": true
+    "github@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "code-review@claude-plugins-official": false,
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "ontopix@ontopix-plugins": true,
+    "hookify@claude-plugins-official": true,
+    "serena@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "ontopix-plugins": {
@@ -41,9 +53,15 @@
         "source": "github",
         "repo": "awslabs/agent-plugins"
       }
+    },
+    "claude-code-skills": {
+      "source": {
+        "source": "github",
+        "repo": "alirezarezvani/claude-skills"
+      }
     }
   },
-  "effortLevel": "low",
-  "skipDangerousModePermissionPrompt": true,
-  "model": "opus"
+  "skillListingBudgetFraction": 0.02,
+  "effortLevel": "high",
+  "skipDangerousModePermissionPrompt": true
 }
