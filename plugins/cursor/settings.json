@@ -1,5 +1,5 @@
 {
-  "terminal.integrated.fontFamily": "MesloLGS NF",
+  "terminal.integrated.fontFamily": "MesloLGS Nerd Font",
   "terminal.integrated.fontSize": 14,
   "terminal.integrated.lineHeight": 1.2,
   "terminal.integrated.fontWeight": "normal",
@@ -38,7 +38,7 @@
       }
     }
   },
-  "editor.fontFamily": "MesloLGS NF, 'Courier New', monospace",
+  "editor.fontFamily": "MesloLGS Nerd Font, 'Courier New', monospace",
   "editor.fontSize": 14,
   "editor.lineHeight": 1.5,
   "editor.fontLigatures": true,
@@ -186,10 +186,10 @@
   "explorer.decorations.colors": true,
   "explorer.sortOrder": "type",
   "explorer.sortOrderLexicographicOptions": "default",
-  "scm.inputFontFamily": "MesloLGS NF",
-  "debug.console.fontFamily": "MesloLGS NF",
+  "scm.inputFontFamily": "MesloLGS Nerd Font",
+  "debug.console.fontFamily": "MesloLGS Nerd Font",
   "debug.console.fontSize": 14,
-  "markdown.preview.fontFamily": "MesloLGS NF, -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
+  "markdown.preview.fontFamily": "MesloLGS Nerd Font, -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
   "git.enableSmartCommit": true,
   "git.confirmSync": false,
   "git.autofetch": true,
