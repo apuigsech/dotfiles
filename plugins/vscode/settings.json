@@ -301,12 +301,19 @@
   "remote.SSH.configFile": "~/.ssh/config",
   "editor.accessibilitySupport": "auto",
   "workbench.editor.tabActionLocation": "right",
-  "claudeCode.preferredLocation": "panel",
-  "claudeCode.allowDangerouslySkipPermissions": true,
-  "claudeCode.environmentVariables": [],
   "github.copilot.enable": {
     "*": false
   },
   "github.copilot.editor.enableCodeActions": false,
-  "github.copilot.nextEditSuggestions.enabled": false
+  "github.copilot.nextEditSuggestions.enabled": false,
+  "chat.restoreLastPanelSession": false,
+  "chat.autopilot.enabled": false,
+  "chat.titleBar.signIn.enabled": false,
+  "claudeCode.preferredLocation": "panel",
+  "claudeCode.allowDangerouslySkipPermissions": true,
+  "claudeCode.environmentVariables": [
+    { "name": "CLAUDE_CODE_USE_BEDROCK", "value": "1" },
+    { "name": "AWS_PROFILE", "value": "claude" },
+    { "name": "AWS_REGION", "value": "eu-west-1" }
+  ]
 }
