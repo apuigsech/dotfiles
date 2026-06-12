@@ -9,4 +9,9 @@
 
 - link:
     ~/.claude/settings.json: settings.json
-    ~/.claude/settings.ollama.json: settings.ollama.json
+    ~/.claude/statusline.sh: statusline.sh
+    ~/.shell/claude: enable
+
+- shell:
+    - command: chmod +x ~/.dotfiles/plugins/claude/statusline.sh
+      description: Make Claude Code status line script executable

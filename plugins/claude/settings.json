@@ -1,16 +1,17 @@
 {
   "awsAuthRefresh": "aws sso login --profile claude",
+  "skillListingBudgetFraction": 0.02,
   "env": {
-    "CLAUDE_CODE_USE_BEDROCK": "1",
-    "AWS_PROFILE": "claude",
-    "AWS_REGION": "eu-west-1",
     "OP_SESSION_CACHE": "true"
   },
   "attribution": {
     "commit": "",
     "pr": ""
   },
-  "model": "opus",
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -61,7 +62,7 @@
       }
     }
   },
-  "skillListingBudgetFraction": 0.02,
   "effortLevel": "high",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true
 }

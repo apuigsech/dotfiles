@@ -1,0 +1,50 @@
+# Claude Code profile wrapper.
+#
+# Claude Code has no native named-profile support, so this intercepts
+# `--profile <name>`, sources the matching ~/.claude/profiles/<name> file
+# (which sets env like CLAUDE_CODE_USE_BEDROCK / ANTHROPIC_MODEL), and then
+# runs the real binary. It also exports CLAUDE_PROFILE so downstream tooling
+# (e.g. the status line) can show the active profile reliably.
+
+claude-profile() {
+  local profile_file="$HOME/.claude/profiles/${1}"
+  if [[ ! -f "$profile_file" ]]; then
+    echo "claude-profile: profile not found: ${profile_file}" >&2
+    return 1
+  fi
+  source "$profile_file"
+  export CLAUDE_PROFILE="${1}"
+  echo "Loaded profile: ${1}"
+}
+
+claude() {
+  local profile=""
+  local args=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --profile)
+        profile="$2"
+        shift 2
+        ;;
+      *)
+        args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -n "$profile" ]]; then
+    local profile_file="$HOME/.claude/profiles/${profile}"
+    if [[ ! -f "$profile_file" ]]; then
+      echo "claude: profile not found: ${profile_file}" >&2
+      return 1
+    fi
+    source "$profile_file"
+    export CLAUDE_PROFILE="${profile}"
+  fi
+
+  local cmd="${CLAUDE_CMD:-/opt/homebrew/bin/claude}"
+  echo "Running Claude!"
+  ${=cmd} "${args[@]}"
+}
