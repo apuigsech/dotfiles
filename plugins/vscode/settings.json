@@ -299,7 +299,7 @@
   "remote.SSH.remotePlatform": {},
   "remote.SSH.showLoginTerminal": true,
   "remote.SSH.configFile": "~/.ssh/config",
-  "editor.accessibilitySupport": "auto",
+  "editor.accessibilitySupport": "on",
   "workbench.editor.tabActionLocation": "right",
   "github.copilot.enable": {
     "*": false
@@ -309,5 +309,7 @@
   "chat.restoreLastPanelSession": false,
   "chat.autopilot.enabled": false,
   "chat.titleBar.signIn.enabled": false,
-  "claudeCode.preferredLocation": "panel"
+  "claudeCode.preferredLocation": "panel",
+  "claudeCode.allowDangerouslySkipPermissions": true,
+  "claudeCode.hideOnboarding": true
 }
