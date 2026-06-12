@@ -1,0 +1,202 @@
+#!/bin/bash
+
+# Description: Restart Arc browser - gracefully quits Arc and relaunches it.
+# Usage: ./arcboot [-f|--force] [-w|--wait SECONDS] [--ignore-media] [--media-poll SECONDS] [--media-timeout SECONDS]
+
+ARC_APP_PATH="/Applications/Arc.app"
+ARC_APP_NAME="Arc"
+FORCE_KILL=false
+WAIT_SECONDS=10
+IGNORE_MEDIA=false
+MEDIA_POLL_INTERVAL=10
+MEDIA_TIMEOUT=0  # 0 = wait indefinitely
+
+usage() {
+    cat <<EOF
+Usage: $0 [-f|--force] [-w|--wait SECONDS] [--ignore-media] [--media-poll SECONDS] [--media-timeout SECONDS]
+
+Restart the Arc browser. Quits Arc gracefully (via AppleScript) and relaunches it.
+By default, waits until Arc stops playing audio/video before quitting.
+
+Options:
+    -f, --force                 Skip graceful quit and use SIGTERM/SIGKILL directly.
+                                Also implies --ignore-media.
+    -w, --wait SECONDS          Seconds to wait for Arc to quit before escalating (default: ${WAIT_SECONDS}).
+    -i, --ignore-media          Do not wait for media playback to end before restarting.
+        --media-poll SECONDS    Polling interval while waiting for media to end (default: ${MEDIA_POLL_INTERVAL}).
+        --media-timeout SECONDS Max seconds to wait for media to end. 0 = wait forever (default: ${MEDIA_TIMEOUT}).
+    -h, --help                  Show this help.
+EOF
+}
+
+parse_args() {
+    while (( "$#" )); do
+        case "$1" in
+            -f|--force)
+                FORCE_KILL=true
+                IGNORE_MEDIA=true
+                shift
+                ;;
+            -w|--wait)
+                if [[ -n "$2" && "${2:0:1}" != "-" ]]; then
+                    WAIT_SECONDS="$2"
+                    shift 2
+                else
+                    echo "Error: Argument for $1 is missing" >&2
+                    exit 1
+                fi
+                ;;
+            -i|--ignore-media)
+                IGNORE_MEDIA=true
+                shift
+                ;;
+            --media-poll)
+                if [[ -n "$2" && "${2:0:1}" != "-" ]]; then
+                    MEDIA_POLL_INTERVAL="$2"
+                    shift 2
+                else
+                    echo "Error: Argument for $1 is missing" >&2
+                    exit 1
+                fi
+                ;;
+            --media-timeout)
+                if [[ -n "$2" && "${2:0:1}" != "-" ]]; then
+                    MEDIA_TIMEOUT="$2"
+                    shift 2
+                else
+                    echo "Error: Argument for $1 is missing" >&2
+                    exit 1
+                fi
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                usage >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# Find the main Arc process (parent, not helpers)
+find_arc_main_pid() {
+    pgrep -x -f "${ARC_APP_PATH}/Contents/MacOS/Arc" | head -1
+}
+
+is_arc_running() {
+    [[ -n "$(find_arc_main_pid)" ]]
+}
+
+# Check if Arc has any active media power assertion (audio or video).
+# Returns 0 if media is playing, 1 otherwise.
+arc_is_playing_media() {
+    local pid
+    pid=$(find_arc_main_pid)
+    [[ -z "$pid" ]] && return 1
+    pmset -g assertions 2>/dev/null \
+        | grep -E "pid ${pid}\(Arc\):" \
+        | grep -qE "Playing audio|Video Wake Lock|NoIdleSleepAssertion|NoDisplaySleepAssertion"
+}
+
+wait_for_media_to_end() {
+    if ! arc_is_playing_media; then
+        return 0
+    fi
+
+    echo "Arc is playing media. Waiting for playback to end..."
+    echo "  (poll interval: ${MEDIA_POLL_INTERVAL}s, timeout: $([[ $MEDIA_TIMEOUT -eq 0 ]] && echo "none" || echo "${MEDIA_TIMEOUT}s"), Ctrl-C to abort)"
+
+    local waited=0
+    while arc_is_playing_media; do
+        if (( MEDIA_TIMEOUT > 0 && waited >= MEDIA_TIMEOUT )); then
+            echo "Error: timeout (${MEDIA_TIMEOUT}s) waiting for media to end." >&2
+            return 1
+        fi
+        sleep "$MEDIA_POLL_INTERVAL"
+        ((waited += MEDIA_POLL_INTERVAL))
+    done
+    echo "Media playback ended after ${waited}s. Proceeding."
+}
+
+graceful_quit() {
+    echo "Asking Arc to quit gracefully..."
+    osascript -e 'tell application "Arc" to quit' 2>/dev/null || true
+}
+
+wait_for_exit() {
+    local waited=0
+    while is_arc_running && (( waited < WAIT_SECONDS )); do
+        sleep 1
+        ((waited++))
+    done
+    ! is_arc_running
+}
+
+force_terminate() {
+    local pid
+    pid=$(find_arc_main_pid)
+    [[ -z "$pid" ]] && return 0
+
+    echo "Sending SIGTERM to Arc main process (PID: $pid)..."
+    kill -TERM "$pid" 2>/dev/null || true
+
+    local waited=0
+    while is_arc_running && (( waited < 5 )); do
+        sleep 1
+        ((waited++))
+    done
+
+    if is_arc_running; then
+        pid=$(find_arc_main_pid)
+        echo "Arc still running, sending SIGKILL to PID: $pid..."
+        kill -KILL "$pid" 2>/dev/null || true
+        sleep 1
+    fi
+}
+
+kill_arc() {
+    if ! is_arc_running; then
+        echo "Arc is not running."
+        return 0
+    fi
+
+    if [[ "$FORCE_KILL" == false ]]; then
+        graceful_quit
+        if wait_for_exit; then
+            echo "Arc quit gracefully."
+            return 0
+        fi
+        echo "Arc did not quit within ${WAIT_SECONDS}s, escalating..."
+    fi
+
+    force_terminate
+
+    if is_arc_running; then
+        echo "Error: Arc could not be terminated." >&2
+        return 1
+    fi
+
+    echo "Arc terminated."
+}
+
+start_arc() {
+    if [[ ! -d "$ARC_APP_PATH" ]]; then
+        echo "Error: Arc not found at ${ARC_APP_PATH}" >&2
+        exit 1
+    fi
+    echo "Launching Arc..."
+    open -a "$ARC_APP_NAME"
+}
+
+main() {
+    parse_args "$@"
+    if [[ "$IGNORE_MEDIA" == false ]]; then
+        wait_for_media_to_end || exit 1
+    fi
+    kill_arc || exit 1
+    start_arc
+}
+
+main "$@"

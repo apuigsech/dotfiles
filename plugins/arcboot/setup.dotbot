@@ -1,0 +1,8 @@
+- defaults:
+    link:
+      relink: true
+
+- link:
+    ~/bin/arcboot:
+        mode: 750
+        path: bin/arcboot
