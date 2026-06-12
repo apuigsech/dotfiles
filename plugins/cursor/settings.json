@@ -319,5 +319,6 @@
   "claudeCode.preferredLocation": "panel",
   "claudeCode.environmentVariables": [],
   "claudeCode.selectedModel": "opus",
-  "editor.accessibilitySupport": "on"
+  "editor.accessibilitySupport": "on",
+  "window.autoDetectColorScheme": false
 }
