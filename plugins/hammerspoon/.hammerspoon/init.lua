@@ -103,9 +103,16 @@ end
 -- SCREEN MODE DETECTION
 -- =============================================================================
 
--- Dynamic screen mode detection
-local function getScreenMode()
-  local screen = hs.screen.mainScreen()
+-- Dynamic screen mode detection.
+-- Uses the screen the given window lives on (falling back to the main screen)
+-- so the right key mode applies when the focused window is on a secondary
+-- monitor. Honors config.windowManager.autoDetectScreens.
+local function getScreenMode(window)
+  if config.windowManager.autoDetectScreens == false then
+    return "single_monitor"
+  end
+
+  local screen = (window and window:screen()) or hs.screen.mainScreen()
   local mode = screen:currentMode()
   local aspectRatio = mode.w / mode.h
 
@@ -165,7 +172,8 @@ local function executeKeyCommand(key)
   end
 
   safeExecute(function()
-    local screenMode = getScreenMode()
+    local window = hs.window.focusedWindow()
+    local screenMode = getScreenMode(window)
     local keyMode = KEYMODES[screenMode]
 
     if keyMode and keyMode[key] then
@@ -205,18 +213,14 @@ if config.isFeatureEnabled("hotkeys") then
       safeExecute(modules.wm.undoWindowMove, "Undo window move failed")
     end)
 
-    -- Window resizing hotkeys
-    hs.hotkey.bind(hotkeys.resizeModifiers, "1", function()
-      safeExecute(function() modules.wm.resizeWindow(50, 50) end, "Resize window failed")
-    end)
-
-    hs.hotkey.bind(hotkeys.resizeModifiers, "2", function()
-      safeExecute(function() modules.wm.resizeWindow(75, 75) end, "Resize window failed")
-    end)
-
-    hs.hotkey.bind(hotkeys.resizeModifiers, "3", function()
-      safeExecute(function() modules.wm.resizeWindow(100, 100) end, "Resize window failed")
-    end)
+    -- Window resizing hotkeys (keys + percentages come from config)
+    for _, binding in ipairs(config.windowManager.resizeBindings or {}) do
+      hs.hotkey.bind(hotkeys.resizeModifiers, binding.key, function()
+        safeExecute(function()
+          modules.wm.resizeWindow(binding.percent, binding.percent)
+        end, "Resize window failed")
+      end)
+    end
 
     log.i("Window management hotkeys enabled")
   end
@@ -329,9 +333,11 @@ if config.isFeatureEnabled("hotkeys") then
 
     if config.isFeatureEnabled("windowManager") then
       helpText = helpText .. "Window Resizing:\n"
-      helpText = helpText .. "⌘⌥⌃ + 1 - 50% size\n"
-      helpText = helpText .. "⌘⌥⌃ + 2 - 75% size\n"
-      helpText = helpText .. "⌘⌥⌃ + 3 - 100% size\n\n"
+      for _, binding in ipairs(config.windowManager.resizeBindings or {}) do
+        helpText = helpText .. "⌘⌥⌃ + " .. binding.key ..
+          " - " .. binding.percent .. "% size\n"
+      end
+      helpText = helpText .. "\n"
     end
 
         helpText = helpText .. "System:\n"

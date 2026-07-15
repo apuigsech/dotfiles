@@ -52,8 +52,14 @@ config.windowManager = {
   autoDetectScreens = true,       -- Auto-detect screen configurations
 
   -- Window positioning
-  enableSmartPositioning = true,  -- Smart positioning based on screen type
   enableWindowRules = true,       -- Application-specific window rules
+
+  -- Window resizing (⌘⌥⌃ + key -> resize to percent of screen, centered)
+  resizeBindings = {
+    { key = "1", percent = 50 },
+    { key = "2", percent = 75 },
+    { key = "3", percent = 100 },
+  },
 }
 
 -- =============================================================================

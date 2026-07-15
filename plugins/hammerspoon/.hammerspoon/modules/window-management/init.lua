@@ -8,6 +8,11 @@ hs.window.animationDuration = config.animationDuration
 hs.grid.setGrid(config.gridSize[1] .. "x" .. config.gridSize[2])
 hs.grid.setMargins(config.margins)
 
+-- Behaviour flags (previously declared in config but never honoured)
+local UNDO_ENABLED = config.enableUndo ~= false
+local MAX_HISTORY = config.maxHistorySize or 10
+local MULTI_MONITOR = config.enableMultiMonitor ~= false
+
 -- Screen position definitions
 This.screenPositions = {
   left = {
@@ -44,18 +49,39 @@ This.screenPositions = {
   }
 }
 
--- Window history for undo functionality
+-- Window history for undo functionality.
+-- Each entry is a STACK (array) of prior states, keyed by window id, so undo
+-- can walk back multiple moves up to MAX_HISTORY instead of a single level.
 local windowHistory = {}
+
+-- Drop all history for a window id (window closed, or stack drained).
+local function forgetWindow(id)
+  if id then windowHistory[id] = nil end
+end
 
 -- Helper function to save window state
 local function saveWindowState(window)
+  if not UNDO_ENABLED then return end
   if not window then return end
   local windowId = window:id()
-  windowHistory[windowId] = {
+  if not windowId then return end
+
+  local stack = windowHistory[windowId]
+  if not stack then
+    stack = {}
+    windowHistory[windowId] = stack
+  end
+
+  table.insert(stack, {
     frame = window:frame(),
     screen = window:screen(),
     timestamp = os.time()
-  }
+  })
+
+  -- Bound the stack: discard the oldest states beyond MAX_HISTORY.
+  while #stack > MAX_HISTORY do
+    table.remove(stack, 1)
+  end
 end
 
 -- Helper function to get focused window with error handling
@@ -78,33 +104,26 @@ function This.moveWindowToPosition(cell, window)
   hs.grid.set(window, cell, screen)
 end
 
--- Slide window animation between positions
-function This.slideWindow(startPos, endPos, window)
-  window = window or getFocusedWindow()
-  if not window then return end
-
-  saveWindowState(window)
-  local screen = window:screen()
-
-  -- Animate from start to end position
-  hs.grid.set(window, startPos, screen)
-  hs.timer.doAfter(0.1, function()
-    hs.grid.set(window, endPos, screen)
-  end)
-end
-
--- Undo last window movement
+-- Undo last window movement (pops one state off the window's history stack)
 function This.undoWindowMove()
   local window = getFocusedWindow()
   if not window then return end
 
-  local windowId = window:id()
-  local history = windowHistory[windowId]
+  if not UNDO_ENABLED then
+    hs.alert.show("Undo is disabled")
+    return
+  end
 
-  if history then
-    window:setFrame(history.frame)
+  local windowId = window:id()
+  local stack = windowId and windowHistory[windowId]
+
+  if stack and #stack > 0 then
+    local state = table.remove(stack)  -- pop most recent
+    window:setFrame(state.frame)
     hs.alert.show("Window position restored")
-    windowHistory[windowId] = nil
+    if #stack == 0 then
+      forgetWindow(windowId)  -- keep the table from growing unbounded
+    end
   else
     hs.alert.show("No window history found")
   end
@@ -176,6 +195,11 @@ function This.moveToNextScreen()
   local window = getFocusedWindow()
   if not window then return end
 
+  if not MULTI_MONITOR then
+    hs.alert.show("Multi-monitor support disabled")
+    return
+  end
+
   saveWindowState(window)
   local screen = window:screen()
   local nextScreen = screen:next()
@@ -229,6 +253,23 @@ function This.resizeWindow(widthPercent, heightPercent)
   windowFrame.y = frame.y + (frame.h - windowFrame.h) / 2
 
   window:setFrame(windowFrame)
+end
+
+-- Clean up history when a window is closed, so windowHistory does not grow
+-- without bound over a long session. Guarded because hs.window.filter is only
+-- available inside the real Hammerspoon runtime.
+if hs.window and hs.window.filter then
+  This._windowFilter = hs.window.filter.new(nil)
+  This._windowFilter:subscribe(hs.window.filter.windowDestroyed, function(win)
+    if win then forgetWindow(win:id()) end
+  end)
+end
+
+-- Introspection helper for tests: number of windows currently tracked.
+function This._historyCount()
+  local n = 0
+  for _ in pairs(windowHistory) do n = n + 1 end
+  return n
 end
 
 return This
