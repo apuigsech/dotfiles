@@ -8,10 +8,7 @@
     "commit": "",
     "pr": ""
   },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline.sh"
-  },
+  "model": "sonnet",
   "hooks": {
     "SessionStart": [
       {
@@ -28,6 +25,10 @@
       }
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  },
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
@@ -38,7 +39,7 @@
     "code-review@claude-plugins-official": false,
     "chrome-devtools-mcp@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
-    "ontopix@ontopix-plugins": true,
+    "ontopix@ontopix-plugins": false,
     "hookify@claude-plugins-official": true,
     "serena@claude-plugins-official": true
   },

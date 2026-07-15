@@ -198,7 +198,7 @@
   "git.suggestSmartCommit": true,
   "git.openRepositoryInParentFolders": "never",
   "extensions.autoCheckUpdates": true,
-  "extensions.autoUpdate": true,
+  "extensions.autoUpdate": "on",
   "extensions.ignoreRecommendations": true,
   "extensions.showRecommendationsOnlyOnDemand": false,
   "telemetry.telemetryLevel": "off",
