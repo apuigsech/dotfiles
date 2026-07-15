@@ -100,56 +100,6 @@ if config.isFeatureEnabled("autoReload") then
 end
 
 -- =============================================================================
--- SCREEN MODE DETECTION
--- =============================================================================
-
--- Dynamic screen mode detection.
--- Uses the screen the given window lives on (falling back to the main screen)
--- so the right key mode applies when the focused window is on a secondary
--- monitor. Honors config.windowManager.autoDetectScreens.
-local function getScreenMode(window)
-  if config.windowManager.autoDetectScreens == false then
-    return "single_monitor"
-  end
-
-  local screen = (window and window:screen()) or hs.screen.mainScreen()
-  local mode = screen:currentMode()
-  local aspectRatio = mode.w / mode.h
-
-  -- Ultra-wide monitors typically have aspect ratio > 2.0
-  if aspectRatio > 2.0 then
-    return "ultra_wide"
-  else
-    return "single_monitor"
-  end
-end
-
--- =============================================================================
--- WINDOW MANAGEMENT KEY MODES
--- =============================================================================
-
-local KEYMODES = {}
-
-if config.isFeatureEnabled("windowManager") and modules.wm then
-  KEYMODES = {
-    single_monitor = {
-      left = modules.wm.FullLeft,
-      right = modules.wm.FullRight,
-      down = modules.wm.FullMid,
-      up = modules.wm.FullScreen,
-      f = modules.wm.FullScreen
-    },
-    ultra_wide = {
-      left = modules.wm.SwitchLeft,
-      right = modules.wm.SwitchRight,
-      down = modules.wm.FullMid,
-      up = modules.wm.FullSide,
-      f = modules.wm.FullScreen
-    }
-  }
-end
-
--- =============================================================================
 -- UTILITY FUNCTIONS
 -- =============================================================================
 
@@ -165,26 +115,6 @@ local function safeExecute(func, errorMsg)
   return success, result
 end
 
--- Key handler with dynamic mode detection
-local function executeKeyCommand(key)
-  if not config.isFeatureEnabled("windowManager") or not modules.wm then
-    return
-  end
-
-  safeExecute(function()
-    local window = hs.window.focusedWindow()
-    local screenMode = getScreenMode(window)
-    local keyMode = KEYMODES[screenMode]
-
-    if keyMode and keyMode[key] then
-      log.d("Executing key command:", key, "in mode:", screenMode)
-      keyMode[key]()
-    else
-      log.w("No key mapping found for:", key, "in mode:", screenMode)
-    end
-  end, "Key command execution failed")
-end
-
 -- =============================================================================
 -- HOTKEY BINDINGS
 -- =============================================================================
@@ -194,11 +124,16 @@ if config.isFeatureEnabled("hotkeys") then
 
   -- Window management hotkeys
   if config.isFeatureEnabled("windowManager") and modules.wm then
-    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.left, function() executeKeyCommand("left") end)
-    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.right, function() executeKeyCommand("right") end)
-    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.up, function() executeKeyCommand("up") end)
-    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.down, function() executeKeyCommand("down") end)
-    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.fullscreen, function() executeKeyCommand("f") end)
+    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.left, function() safeExecute(function() modules.wm.applyKey("left") end, "Apply key failed") end)
+    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.right, function() safeExecute(function() modules.wm.applyKey("right") end, "Apply key failed") end)
+    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.up, function() safeExecute(function() modules.wm.applyKey("up") end, "Apply key failed") end)
+    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.down, function() safeExecute(function() modules.wm.applyKey("down") end, "Apply key failed") end)
+    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.fullscreen, function() safeExecute(function() modules.wm.applyKey("f") end, "Apply key failed") end)
+
+    -- Modifier-only mode switcher (⌘⌥⇧ by default): cycles placement modes.
+    safeExecute(function()
+      modules.wm.startModeSwitcher(hotkeys.modeSwitchModifiers)
+    end, "Mode switcher init failed")
 
     -- Additional window management hotkeys
     hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.center, function()
@@ -318,7 +253,8 @@ if config.isFeatureEnabled("hotkeys") then
       helpText = helpText .. "⌘⌥ + F - Fullscreen\n"
       helpText = helpText .. "⌘⌥ + C - Center window\n"
       helpText = helpText .. "⌘⌥ + N - Move to next screen\n"
-      helpText = helpText .. "⌘⌥ + Z - Undo window move\n\n"
+      helpText = helpText .. "⌘⌥ + Z - Undo window move\n"
+      helpText = helpText .. "⌘⌥⇧ - Switch placement mode\n\n"
     end
 
     if config.isFeatureEnabled("applicationLauncher") then

@@ -60,6 +60,15 @@ config.windowManager = {
     { key = "2", percent = 75 },
     { key = "3", percent = 100 },
   },
+
+  -- Placement modes available per monitor category. The active mode remaps the
+  -- arrow keys; ⌘⌥⇧ cycles within the current screen's list (see below).
+  -- Each category starts on its first entry, reproducing the previous behavior:
+  -- normal monitors -> halves, ultrawide -> quarters.
+  modeCycles = {
+    normal    = { "halves", "thirds" },     -- monitors with aspect ratio <= 2.0
+    ultrawide = { "quarters", "thirds" },    -- aspect ratio > 2.0
+  },
 }
 
 -- =============================================================================
@@ -270,6 +279,7 @@ config.hotkeys = {
   appModifiers = {"cmd", "alt"},          -- Application control
   systemModifiers = {"cmd", "alt"},       -- System functions
   resizeModifiers = {"cmd", "alt", "ctrl"}, -- Window resizing
+  modeSwitchModifiers = {"cmd", "alt", "shift"}, -- Cycle window placement mode
 
   -- Key mappings
   keys = {
