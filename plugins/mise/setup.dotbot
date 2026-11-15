@@ -4,6 +4,17 @@
 
 - create:
     - ~/.shell
+    - ~/.config/mise
 
 - link:
     ~/.shell/mise: enable
+    ~/.config/mise/config.toml:
+      path: config.toml
+      backup: true
+
+# After the link above, so a fresh machine installs the pinned versions.
+- shell:
+    - command: mise install --yes
+      description: Install global mise tools from config.toml
+      stdout: true
+      stderr: true

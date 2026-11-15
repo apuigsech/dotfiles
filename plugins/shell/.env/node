@@ -10,7 +10,4 @@ export BUN_INSTALL="$HOME/.bun"
 [[ -d "$BUN_INSTALL/bin" ]] && export PATH="$BUN_INSTALL/bin:$PATH"
 [[ -s "$BUN_INSTALL/_bun" ]] && source "$BUN_INSTALL/_bun"
 
-# mise
-if has_cmd mise; then
-    eval "$(mise activate "$(basename "$SHELL")")"
-fi
+# mise is activated by the mise plugin (~/.shell/mise), not here.
