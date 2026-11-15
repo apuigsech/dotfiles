@@ -1,5 +1,6 @@
 logs/
 cache/
+config/dotfiles.local.conf
 *.DS_Store
 .venv/
 

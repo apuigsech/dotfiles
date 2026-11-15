@@ -113,7 +113,8 @@ performance.parallel=true
 performance.timeout=300
 
 # Plugin settings
-plugins.enabled=brew,shell,zsh,direnv,hammerspoon,configs,bluereset,renicer,cursor,macos-defaults
+# Brewfile profiles on top of the base Brewfile
+brew.profiles=ai,dev,personal,vscode
 ```
 
 ### Environment Variables
@@ -243,20 +244,12 @@ The enhanced installation process provides multiple options:
 
 ## Package Management
 
-The brew plugin provides comprehensive package management:
-
-### Packages Installed
-- **Development Tools**: git, docker, docker-compose, httpie, jq, yq
-- **Shell Utilities**: coreutils, eza, fzf, tree, tldr, bat, ripgrep
-- **System Tools**: blueutil, gnupg, direnv, mas, mackup
-- **Programming Languages**: node, python, go, rust
-- **Applications**: Various cask applications for development and productivity
-
-### Cask Applications
-- **Development**: Cursor, Docker Desktop, Postman, TablePlus
-- **Productivity**: Alfred, Raycast, CleanMyMac, Bartender
-- **Media**: VLC, IINA, Spotify, Discord
-- **Utilities**: The Unarchiver, AppCleaner, Finder Path
+Packages are declared in Brewfiles under `plugins/brew/`: a base `Brewfile`
+that is always installed plus one `Brewfile.<profile>` per profile (`ai`, `dev`,
+`personal`, `vscode`). Choose the profiles per machine with `brew.profiles` in
+`config/dotfiles.local.conf`; `./dotfiles doctor` reports packages that are
+declared but missing, and packages installed by hand that no Brewfile lists.
+See [plugins/brew/README.md](plugins/brew/README.md).
 
 ## Configuration Files
 
@@ -358,7 +351,20 @@ echo '- link:' > plugins/my-plugin/setup.dotbot
 1. **Override settings**: Edit `config/dotfiles.conf`
 2. **Environment variables**: Use `DOTFILES_*` environment variables
 3. **Plugin configuration**: Edit individual plugin files
-4. **Profile-specific**: Use `profiles/` directory for environment-specific settings
+
+### Per-machine overrides (`*.local`)
+
+Machine-specific configuration lives in files that are never committed, so a
+work identity or a client's settings can come and go without touching the repo:
+
+| File | Loaded by | Use it for |
+|---|---|---|
+| `~/.gitconfig.local` | `[include]` at the end of `.gitconfig` | Work email, `includeIf "gitdir:..."` blocks, extra credential helpers |
+| `~/.shell.local` | last line of `.shellrc` | Aliases, exports and PATH entries for this machine only |
+| `config/dotfiles.local.conf` | the dotfiles CLI | `brew.profiles` and other per-machine settings |
+
+Each is loaded last, so it overrides the shared configuration, and a missing
+file is ignored.
 
 ## Logging and Monitoring
 

@@ -20,6 +20,17 @@ source lib/uninstall
 
 # Configuration
 DOTFILES_PLUGINS=(brew 1password shell zsh git ssh direnv at-command mise hammerspoon configs bluereset renicer arcboot cursor vscode iterm2 macos-defaults claude agent-host)
+# Installable by name only, never by --all (they have prerequisites; see README)
+DOTFILES_MANUAL_PLUGINS=(arc)
+
+# True if the name is a registered or manual plugin
+function is_known_plugin() {
+    local name="$1" p
+    for p in "${DOTFILES_PLUGINS[@]}" "${DOTFILES_MANUAL_PLUGINS[@]}"; do
+        [[ "$name" == "$p" ]] && return 0
+    done
+    return 1
+}
 DOTBOT_DIR="dotbot"
 CONFIG="install.conf.yaml"
 
@@ -110,6 +121,7 @@ This command installs dotfiles plugins:
 - Provides comprehensive error handling and logging
 
 Available plugins: ${DOTFILES_PLUGINS[*]}
+Manual plugins (by name only, not in --all): ${DOTFILES_MANUAL_PLUGINS[*]}
 
 Options:
     --all       Install all plugins
@@ -142,6 +154,7 @@ This command removes dotfiles plugins:
 - Provides comprehensive error handling and logging
 
 Available plugins: ${DOTFILES_PLUGINS[*]}
+Manual plugins (by name only, not in --all): ${DOTFILES_MANUAL_PLUGINS[*]}
 
 Options:
     --all       Remove all plugins
@@ -192,7 +205,7 @@ Usage: ./dotfiles doctor [options]
 
 This command checks for common problems:
 - Broken symlinks from plugin configurations
-- Missing brew packages vs package lists
+- Brew drift: declared-but-missing and installed-but-undeclared packages (active profiles)
 - Expected tools not found in PATH
 - Plugin registration and directory issues
 - Git and dotbot health
@@ -314,19 +327,11 @@ function cmd_install() {
             *)
                 # Check if it's a valid plugin name
                 local plugin="$arg"
-                local is_valid=false
-                for valid_plugin in "${DOTFILES_PLUGINS[@]}"; do
-                    if [[ "$plugin" == "$valid_plugin" ]]; then
-                        is_valid=true
-                        break
-                    fi
-                done
-
-                if [[ "$is_valid" == true ]]; then
+                if is_known_plugin "$plugin"; then
                     plugins_to_install+=("$plugin")
                 else
                     log_error "Unknown plugin: $plugin"
-                    echo "Available plugins: ${DOTFILES_PLUGINS[*]}"
+                    echo "Available plugins: ${DOTFILES_PLUGINS[*]} (manual: ${DOTFILES_MANUAL_PLUGINS[*]})"
                     return 1
                 fi
                 ;;
@@ -425,19 +430,11 @@ function cmd_uninstall() {
             *)
                 # Check if it's a valid plugin name
                 local plugin="$arg"
-                local is_valid=false
-                for valid_plugin in "${DOTFILES_PLUGINS[@]}"; do
-                    if [[ "$plugin" == "$valid_plugin" ]]; then
-                        is_valid=true
-                        break
-                    fi
-                done
-
-                if [[ "$is_valid" == true ]]; then
+                if is_known_plugin "$plugin"; then
                     plugins_to_uninstall+=("$plugin")
                 else
                     log_error "Unknown plugin: $plugin"
-                    echo "Available plugins: ${DOTFILES_PLUGINS[*]}"
+                    echo "Available plugins: ${DOTFILES_PLUGINS[*]} (manual: ${DOTFILES_MANUAL_PLUGINS[*]})"
                     return 1
                 fi
                 ;;
@@ -694,44 +691,30 @@ function cmd_doctor() {
     # 4. Check brew packages
     echo -e "\n${YELLOW}[4/6] Brew packages${NC}"
     if has_cmd brew; then
-        local missing_pkgs=()
-        local missing_casks=()
+        echo "  Profiles: base $(brew_profiles)"
 
-        # Check formula packages
-        if [[ -f "plugins/brew/packages.lst" ]]; then
-            while IFS= read -r pkg; do
-                [[ -z "$pkg" || "$pkg" =~ ^[[:space:]]*# ]] && continue
-                pkg=$(echo "$pkg" | xargs)
-                if ! brew list "$pkg" &>/dev/null; then
-                    missing_pkgs+=("$pkg")
-                fi
-            done < "plugins/brew/packages.lst"
-        fi
-
-        # Check cask packages
-        if [[ -f "plugins/brew/packages-cask.lst" ]]; then
-            while IFS= read -r pkg; do
-                [[ -z "$pkg" || "$pkg" =~ ^[[:space:]]*# ]] && continue
-                pkg=$(echo "$pkg" | xargs)
-                if ! brew list --cask "$pkg" &>/dev/null; then
-                    missing_casks+=("$pkg")
-                fi
-            done < "plugins/brew/packages-cask.lst"
-        fi
-
-        if [[ ${#missing_pkgs[@]} -gt 0 ]]; then
-            echo -e "  ${RED}✗${NC} Missing formulae: ${missing_pkgs[*]}"
+        # Declared in the active Brewfiles but not installed
+        local missing
+        missing=$(brew_missing)
+        if [[ -n "$missing" ]]; then
+            echo -e "  ${RED}✗${NC} Declared but not installed:"
+            echo "$missing" | sed 's/^/      /'
             echo "    Fix: ./dotfiles install brew"
             ((issues++))
         else
-            echo -e "  ${GREEN}✓${NC} All formulae installed"
+            echo -e "  ${GREEN}✓${NC} Everything in the active Brewfiles is installed"
         fi
 
-        if [[ ${#missing_casks[@]} -gt 0 ]]; then
-            echo -e "  ${YELLOW}!${NC} Missing casks: ${missing_casks[*]}"
+        # Installed by hand but not declared (drift). Only reported, never removed.
+        local untracked
+        untracked=$(brew_untracked)
+        if [[ -n "$untracked" ]]; then
+            echo -e "  ${YELLOW}!${NC} Installed but not in any active Brewfile ($(echo "$untracked" | wc -l | xargs)):"
+            echo "$untracked" | sed 's/^/      /'
+            echo "    Fix: add them to a Brewfile, or uninstall them"
             ((issues++))
         else
-            echo -e "  ${GREEN}✓${NC} All casks installed"
+            echo -e "  ${GREEN}✓${NC} No packages installed outside the Brewfiles"
         fi
     else
         echo -e "  ${RED}✗${NC} Homebrew not installed"

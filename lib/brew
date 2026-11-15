@@ -346,3 +346,69 @@ if brew_is_installed; then
 else
     log_debug "Homebrew library loaded - not installed"
 fi
+# =============================================================================
+# Brewfile profiles
+# =============================================================================
+# plugins/brew/Brewfile is always installed; each active profile adds
+# plugins/brew/Brewfile.<profile>. The profile list is read from, last wins:
+#   1. brew.profiles in config/dotfiles.conf        (committed default)
+#   2. brew.profiles in config/dotfiles.local.conf  (per machine, gitignored)
+#   3. the DOTFILES_BREW_PROFILES environment variable
+# Values are comma- or space-separated; an empty value means base only.
+
+# Repo root, resolved from this file so it works when BASE_DIR is unset (plugin
+# setup.sh scripts run in a child bash that does not inherit it).
+BREW_DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+function brew_profiles() {
+    local profiles="" file
+    for file in "$BREW_DOTFILES_ROOT/config/dotfiles.conf" \
+                "$BREW_DOTFILES_ROOT/config/dotfiles.local.conf"; do
+        [[ -f "$file" ]] || continue
+        if grep -qE '^[[:space:]]*brew\.profiles[[:space:]]*=' "$file"; then
+            profiles=$(sed -nE 's/^[[:space:]]*brew\.profiles[[:space:]]*=[[:space:]]*//p' "$file" | tail -1)
+        fi
+    done
+    [[ -n "${DOTFILES_BREW_PROFILES+set}" ]] && profiles="$DOTFILES_BREW_PROFILES"
+    echo "${profiles//,/ }"
+}
+
+# Print the Brewfiles of the active profiles, base first. Unknown profiles are
+# reported on stderr and skipped.
+function brew_active_brewfiles() {
+    local dir="$BREW_DOTFILES_ROOT/plugins/brew" profile
+    echo "$dir/Brewfile"
+    for profile in $(brew_profiles); do
+        if [[ -f "$dir/Brewfile.$profile" ]]; then
+            echo "$dir/Brewfile.$profile"
+        else
+            log_warn "Unknown Brewfile profile '$profile' (no Brewfile.$profile)" >&2
+        fi
+    done
+}
+
+# Print what the active Brewfiles declare but is not installed, one per line,
+# as reported by `brew bundle check --verbose` (formulae, casks, extensions...).
+function brew_missing() {
+    local combined
+    combined=$(mktemp "${TMPDIR:-/tmp}/dotfiles-brewfile.XXXXXX") || return 1
+    local file
+    while IFS= read -r file; do cat "$file"; echo; done < <(brew_active_brewfiles) > "$combined"
+    HOMEBREW_NO_AUTO_UPDATE=1 brew bundle check --verbose --no-upgrade --file="$combined" 2>&1 \
+        | sed -nE 's/^→ (.*) needs to be installed\.?$/\1/p'
+    rm -f "$combined"
+}
+
+# Print formulae and casks installed on request that no active Brewfile lists,
+# as "formula <name>" / "cask <name>". Dependencies are not reported. Read-only:
+# the dotfiles never uninstall anything (no `brew bundle cleanup --force`).
+function brew_untracked() {
+    local listed
+    listed=$(brew_active_brewfiles | xargs sed -nE 's/^[[:space:]]*(brew|cask)[[:space:]]+"([^"]+)".*/\1 \2/p' \
+        | sed -E 's#^(brew|cask) (.*/)?#\1 #; s/^brew /formula /' | sort -u)
+
+    {
+        HOMEBREW_NO_AUTO_UPDATE=1 brew leaves --installed-on-request 2>/dev/null | sed -E 's#^(.*/)?#formula #'
+        HOMEBREW_NO_AUTO_UPDATE=1 brew list --cask -1 2>/dev/null | sed 's/^/cask /'
+    } | sort -u | comm -23 - <(echo "$listed")
+}
