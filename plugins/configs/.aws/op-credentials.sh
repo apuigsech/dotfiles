@@ -10,13 +10,13 @@
 
 set -euo pipefail
 
-CACHE_TTL=3600  # seconds; how often to re-read from 1Password, not a credential expiry
+CACHE_TTL=43200  # seconds; how often to re-read from 1Password, not a credential expiry
 CACHE_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache}/aws-op-credentials"
 KEYCHAIN_SA_SERVICE="op-sa-agents"
 
 get_item_id() {
     case "$1" in
-        ontopix-dev) echo "f6adss6uzqjuzjxlcu32mvfpbe" ;;
+        ontopix-dev) echo "4cjgz5n4wu4ysxawej5pjkl53a" ;;  # AWS Access Key (ontopix-dev), vault Agents
         *) echo "" ;;
     esac
 }

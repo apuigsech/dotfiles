@@ -27,30 +27,21 @@ else
         echo 'export OP_PLUGIN_ALIASES_SOURCED=1' > "$PLUGINS_FILE"
     fi
 
-    # claude — inject secrets via op run
-    if has_cmd claude; then
-        if grep -q "alias claude=" "$PLUGINS_FILE" 2>/dev/null; then
-            log_info "1Password shell plugin already configured: claude"
-        else
-            echo "alias claude='op run --account $PERSONAL_ACCOUNT -- claude'" >> "$PLUGINS_FILE"
-            log_info "1Password shell plugin configured: claude"
-        fi
-    fi
+    # The CLI authenticates through the desktop-app integration. Do NOT add
+    # accounts manually (op account add): mixing both modes breaks
+    # non-interactive auth (2026-07 incident).
 
-    # Check configured accounts
-    for entry in \
-        "ontopix:ontopix account (albert.puigsech@ontopix.ai)" \
-        "personal:personal/family account (albert@puigsech.com)"
-    do
-        shorthand="${entry%%:*}"
-        description="${entry#*:}"
-        if op account list 2>/dev/null | grep -q "$shorthand"; then
-            log_info "1Password CLI account configured: $shorthand"
-        else
-            log_warn "1Password CLI account not configured: $shorthand ($description)"
-            log_warn "  Run: op account add --shorthand $shorthand"
-        fi
-    done
+    # Headless lane for agents (Claude Code hooks, AWS credential_process):
+    # a read-only service-account token stored in the macOS Keychain, so no
+    # biometric prompt is needed while the user session is unlocked.
+    if security find-generic-password -s op-sa-agents >/dev/null 2>&1; then
+        log_info "1Password service-account token present in Keychain (op-sa-agents)"
+    else
+        log_warn "1Password service-account token missing (Keychain item: op-sa-agents)"
+        log_warn "  Create a service account with read access to the 'Agents' vault at"
+        log_warn "  1password.com > Developer > Service Accounts, then store its token with:"
+        log_warn "  security add-generic-password -s op-sa-agents -a claude -w '<token>'"
+    fi
 fi
 
 # Check SSH agent socket
@@ -62,60 +53,11 @@ else
     log_warn "Enable it in: 1Password > Settings > Developer > Use the SSH agent"
 fi
 
-# Apply 1Password settings
-SETTINGS_FILE=~/Library/Group\ Containers/2BUA8C4S2C.com.1password/Library/Application\ Support/1Password/Data/settings/settings.json
-
-if [[ ! -f "$SETTINGS_FILE" ]]; then
-    log_warn "1Password settings file not found. Open 1Password first."
-    exit 0
-fi
-
-log_info "Applying 1Password settings..."
-
-python3 - "$SETTINGS_FILE" <<'EOF'
-import json, sys
-
-settings_file = sys.argv[1]
-
-with open(settings_file, 'r') as f:
-    settings = json.load(f)
-
-desired = {
-    "app.theme": "dark",
-    "appearance.interfaceDensity": "compact",
-    "app.zoomLevel": 90,
-    "appearance.useSystemAccentColor": False,
-    "security.authenticatedUnlock.enabled": True,
-    "security.authenticatedUnlock.appleTouchId": True,
-    "security.autolock.minutes": 240,
-    "privacy.checkHibp": True,
-    "passwordGenerator.size.characters": 16,
-    "passwordGenerator.type": "password-generator-menu-entry-type-random-password",
-    "passwordGenerator.includeSymbols": True,
-    "sshAgent.enabled": True,
-    "sshAgent.sshAuthorizatonModel": "application",
-    "sidebar.showCategories": False,
-    "sidebar.showTags": True,
-    "browsers.extension.enabled": True,
-    "updates.updateChannel": "PRODUCTION",
-}
-
-changed = []
-for key, value in desired.items():
-    if settings.get(key) != value:
-        settings[key] = value
-        # Remove stale authTag so 1Password regenerates it
-        if 'authTags' in settings and key in settings['authTags']:
-            del settings['authTags'][key]
-        changed.append(key)
-
-with open(settings_file, 'w') as f:
-    json.dump(settings, f, indent=4)
-
-if changed:
-    print(f"Updated settings: {', '.join(changed)}")
-else:
-    print("Settings already up to date")
-EOF
-
-log_info "1Password settings applied. Restart 1Password to apply changes."
+# 1Password app settings cannot be managed from here: settings.json entries are
+# protected by authTags and the app detects and reverts external edits. The
+# desired baseline must be set in the app UI (1Password > Settings):
+#   - Security > Auto-lock: 4 hours. Every CLI/SSH/MCP authorization is revoked
+#     when the app locks, so a short auto-lock multiplies biometric prompts.
+#   - Developer > Integrate with 1Password CLI: enabled
+#   - Developer > Use the SSH agent: enabled
+log_info "Reminder: verify 1Password app settings in the UI (auto-lock 4h, CLI integration, SSH agent)."

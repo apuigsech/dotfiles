@@ -1,14 +1,30 @@
 {
   "awsAuthRefresh": "aws sso login --profile claude",
   "skillListingBudgetFraction": 0.02,
-  "env": {
-    "OP_SESSION_CACHE": "true"
-  },
+  "env": {},
   "attribution": {
     "commit": "",
     "pr": ""
   },
-  "model": "sonnet",
+  "permissions": {
+    "allow": [
+      "Bash(AWS_PROFILE=app-reboot-agents task sandbox:stop SANDBOX_ID=i*-agent -- --yes)",
+      "Bash(AWS_PROFILE=app-reboot-agents task sandbox:stop SANDBOX_ID=e2e-* -- --yes)",
+      "Bash(AWS_PROFILE=app-reboot-agents task e2e:run)",
+      "Bash(AWS_PROFILE=app-reboot-agents aws cloudformation delete-stack --stack-name amplify-appbackend-*-sandbox-*)",
+      "Bash(task operators:add EMAIL=* SANDBOX_ID=i*-agent *)"
+    ],
+    "deny": [
+      "Bash(*task *operators:*ENV=*)",
+      "Bash(*ENV=* task *operators:*)",
+      "Bash(*task *operators:*CONFIRM=*)",
+      "Bash(*CONFIRM=* task *operators:*)",
+      "Bash(*task *operators:*BACKEND=*)",
+      "Bash(*task *operators:*BRANCH=*)",
+      "Bash(*task *operators:*AMPLIFY_APP_NAME=*)"
+    ]
+  },
+  "model": "opus",
   "hooks": {
     "SessionStart": [
       {
@@ -19,7 +35,19 @@
           },
           {
             "type": "command",
-            "command": "/opt/homebrew/bin/gh auth status 2>/dev/null || echo $(op read --account MSUA4CBFK5ABDN2WY4Q64LCPJI \"op://Private/GitHub/token\") | /opt/homebrew/bin/gh auth login --with-token 2>/dev/null || true"
+            "command": "~/.claude/gh-auth.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f ~/.claude/hooks/ontopix-app-guard.py ] && /usr/bin/python3 ~/.claude/hooks/ontopix-app-guard.py || true",
+            "timeout": 10
           }
         ]
       }
@@ -30,24 +58,22 @@
     "command": "~/.claude/statusline.sh"
   },
   "enabledPlugins": {
-    "superpowers@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
-    "github@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
-    "code-review@claude-plugins-official": false,
-    "chrome-devtools-mcp@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
-    "ontopix@ontopix-plugins": false,
-    "hookify@claude-plugins-official": true,
-    "serena@claude-plugins-official": true
+    "siesta@siesta": true
   },
   "extraKnownMarketplaces": {
-    "ontopix-plugins": {
+    "siesta": {
       "source": {
-        "source": "directory",
-        "path": "/Users/apuigsech/Develop/github.com/ontopix/claude-setup"
+        "source": "github",
+        "repo": "apuigsech/siesta"
+      }
+    },
+    "ontopix": {
+      "source": {
+        "source": "github",
+        "repo": "ontopix/agents-setup"
       }
     },
     "agent-plugins-for-aws": {
@@ -55,15 +81,22 @@
         "source": "github",
         "repo": "awslabs/agent-plugins"
       }
-    },
-    "claude-code-skills": {
-      "source": {
-        "source": "github",
-        "repo": "alirezarezvani/claude-skills"
-      }
     }
   },
-  "effortLevel": "high",
+  "modelSettings": {
+    "claude-fable-5-1": {
+      "effortLevel": "xhigh"
+    },
+    "claude-opus-5-5": {
+      "effortLevel": "medium",
+      "autoCompactWindow": 350000
+    },
+    "claude-fable-5-2": {
+      "effortLevel": "xhigh"
+    }
+  },
   "skipDangerousModePermissionPrompt": true,
-  "skipWorkflowUsageWarning": true
+  "skipWorkflowUsageWarning": true,
+  "theme": "dark",
+  "agentPushNotifEnabled": true
 }

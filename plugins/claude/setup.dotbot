@@ -10,8 +10,9 @@
 - link:
     ~/.claude/settings.json: settings.json
     ~/.claude/statusline.sh: statusline.sh
+    ~/.claude/gh-auth.sh: gh-auth.sh
     ~/.shell/claude: enable
 
 - shell:
-    - command: chmod +x ~/.dotfiles/plugins/claude/statusline.sh
-      description: Make Claude Code status line script executable
+    - command: chmod +x ~/.dotfiles/plugins/claude/statusline.sh ~/.dotfiles/plugins/claude/gh-auth.sh
+      description: Make Claude Code helper scripts executable
