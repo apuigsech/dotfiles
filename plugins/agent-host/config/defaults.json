@@ -1,0 +1,11 @@
+{
+  "machine": "agent-work",
+  "distribution": "ubuntu:24.04",
+  "cpus": 6,
+  "memoryGiB": 24,
+  "diskGiB": 150,
+  "user": "agent",
+  "nodeVersion": "22.23.4",
+  "codexVersion": "0.167.1",
+  "claudeVersion": "2.1.322"
+}

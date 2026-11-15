@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""Explicit lifecycle for isolated OrbStack agent machines. No third-party modules."""
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "agent-host/config.json"
+STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "agent-host"
+
+
+def fail(message):
+    raise ValueError(message)
+
+
+def load_config():
+    defaults = json.loads((ROOT / "config/defaults.json").read_text())
+    custom = json.loads(CONFIG.read_text()) if CONFIG.exists() else {}
+    if not isinstance(custom, dict) or set(custom) - set(defaults):
+        fail("Config must be an object containing only keys from defaults.json")
+    cfg = {**defaults, **custom}
+    for key in ("machine", "user"):
+        if not isinstance(cfg[key], str) or not re.fullmatch(r"[a-z][a-z0-9-]{0,30}", cfg[key]):
+            fail(f"Invalid {key}: use lowercase letters, digits and hyphens")
+    if cfg["user"] in ("root", "admin", "ubuntu", "tailscale", "agent-admin"):
+        fail("Reserved execution user")
+    if cfg["distribution"] != "ubuntu:24.04":
+        fail("Only ubuntu:24.04 is supported by the provisioning recipe")
+    for key in ("cpus", "memoryGiB", "diskGiB"):
+        if type(cfg[key]) is not int or cfg[key] < 1:
+            fail(f"{key} must be a positive integer")
+    for key in ("nodeVersion", "codexVersion", "claudeVersion"):
+        if not isinstance(cfg[key], str) or not re.fullmatch(r"\d+\.\d+\.\d+", cfg[key]):
+            fail(f"{key} must be an exact release version")
+    return cfg
+
+
+def run(args, **kwargs):
+    # Do not forward host credentials or ORBENV into the execution environment.
+    env = {k: v for k, v in os.environ.items() if k not in {
+        "ORBENV", "SSH_AUTH_SOCK", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
+        "OPENAI_API_KEY", "CODEX_API_KEY", "GH_TOKEN", "GITHUB_TOKEN", "AWS_SESSION_TOKEN",
+        "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}}
+    return subprocess.run(args, check=True, env=env, **kwargs)
+
+
+def machines(running=False):
+    args = ["orb", "list", "--quiet"]
+    if running:
+        args.append("--running")
+    return set(run(args, capture_output=True, text=True).stdout.split())
+
+
+def require_owned(cfg, running=False):
+    record = STATE / (cfg["machine"] + ".json")
+    saved = json.loads(record.read_text()) if record.exists() else {}
+    identity = ("machine", "distribution", "cpus", "memoryGiB", "diskGiB", "user")
+    if any(saved.get(key) != cfg[key] for key in identity):
+        fail("No matching creation record. Refusing to operate on an existing/unmanaged machine. "
+             "Restore the original config if it was edited after creation.")
+    if cfg["machine"] not in machines(running):
+        fail("Machine is missing or stopped; run agent-host start first")
+
+
+def guest(cfg, command, user="root", **kwargs):
+    return run(["orb", "run", "--machine", cfg["machine"], "--user", user,
+                "--workdir", "/", *command], **kwargs)
+
+
+def provision(cfg):
+    script = (ROOT / "provision/base.sh").read_text()
+    guest(cfg, ["bash", "-s", "--", cfg["user"], cfg["nodeVersion"],
+                cfg["codexVersion"], cfg["claudeVersion"]], input=script, text=True)
+    guest(cfg, ["bash", "-s", "--", cfg["user"]],
+          input=(ROOT / "provision/user.sh").read_text(), text=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="action", required=True)
+    for name in ("init", "config", "create", "provision", "start", "stop", "status", "doctor", "connect"):
+        sub.add_parser(name)
+    shell = sub.add_parser("shell")
+    shell.add_argument("--user", help="Linux user (default: configured execution user)")
+    add = sub.add_parser("add-user")
+    add.add_argument("user")
+    auth = sub.add_parser("authorize")
+    auth.add_argument("public_key", type=Path)
+    auth.add_argument("--user", help="Linux user (default: configured execution user)")
+    args = parser.parse_args()
+    cfg = load_config()
+    if args.action == "init":
+        CONFIG.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            with CONFIG.open("x") as file:
+                file.write(json.dumps(cfg, indent=2) + "\n")
+            CONFIG.chmod(0o600)
+        except FileExistsError:
+            pass
+        print(CONFIG)
+        return
+    if args.action == "config":
+        print(json.dumps(cfg, indent=2))
+        return
+    if not shutil.which("orb"):
+        fail("OrbStack is required (already declared in plugins/brew/Brewfile.dev)")
+    if args.action == "status":
+        if cfg["machine"] not in machines():
+            print("Not created. Run agent-host init, review config, then agent-host create.")
+        else:
+            run(["orb", "info", cfg["machine"]])
+        return
+    if args.action == "create":
+        if cfg["machine"] in machines():
+            fail("Machine already exists; use provision to retry a managed setup. No adoption or replacement.")
+        # Require reviewed local config before allocating resources.
+        if not CONFIG.exists():
+            fail("Run agent-host init and review the local config first")
+        run(["orb", "create", "--isolated", "--isolate-network", "--arch", "arm64",
+             "--user", "agent-admin", "--cpus", str(cfg["cpus"]),
+             "--memory", f'{cfg["memoryGiB"]}G', "--disk", f'{cfg["diskGiB"]}G',
+             cfg["distribution"], cfg["machine"]])
+        STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+        record = STATE / (cfg["machine"] + ".json")
+        record.write_text(json.dumps(cfg, indent=2) + "\n")
+        record.chmod(0o600)
+        provision(cfg)
+        print("Created. Next: agent-host connect, authorize a public key, and run doctor.")
+        return
+    require_owned(cfg, running=args.action not in ("start", "stop"))
+    if args.action in ("start", "stop"):
+        run(["orb", args.action, cfg["machine"]])
+    elif args.action == "provision":
+        provision(cfg)
+    elif args.action == "connect":
+        guest(cfg, ["tailscale", "up", "--hostname", cfg["machine"], "--ssh=false",
+                    "--accept-routes=false", "--accept-dns=false"])
+        guest(cfg, ["tailscale", "ip", "-4"])
+    elif args.action == "shell":
+        user = args.user or cfg["user"]
+        validate_user(user)
+        guest(cfg, ["bash", "-l"], user=user)
+    elif args.action == "add-user":
+        validate_user(args.user)
+        guest(cfg, ["bash", "-s", "--", args.user],
+              input=(ROOT / "provision/user.sh").read_text(), text=True)
+    elif args.action == "authorize":
+        user = args.user or cfg["user"]
+        validate_user(user)
+        key = args.public_key.read_text().strip()
+        if not re.fullmatch(r"(?:ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(?:256|384|521)) [A-Za-z0-9+/]+={0,3}(?: [^\r\n]+)?", key):
+            fail("Expected one public key, without authorized_keys options; private keys are never accepted")
+        # Validate key material before modifying guest authorization.
+        run(["ssh-keygen", "-l", "-f", str(args.public_key)], capture_output=True)
+        script = f'''set -eu
+test -f /etc/agent-host/users/{shlex.quote(user)}
+install -d -m 755 /etc/ssh/agent-host-keys
+touch /etc/ssh/agent-host-keys/{shlex.quote(user)}
+key={shlex.quote('no-agent-forwarding,no-port-forwarding,no-X11-forwarding ' + key)}
+grep -qxF -- "$key" /etc/ssh/agent-host-keys/{shlex.quote(user)} || printf '%s\\n' "$key" >> /etc/ssh/agent-host-keys/{shlex.quote(user)}
+chmod 644 /etc/ssh/agent-host-keys/{shlex.quote(user)}
+'''
+        guest(cfg, ["bash", "-s"], input=script, text=True)
+        print(f"Authorized public key for {user}. Configure tailnet access separately.")
+    elif args.action == "doctor":
+        guest(cfg, ["bash", "-s", "--", cfg["user"]],
+              input=(ROOT / "provision/doctor.sh").read_text(), text=True)
+
+
+def validate_user(user):
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,30}", user) or user in {
+        "root", "admin", "ubuntu", "tailscale", "agent-admin"}:
+        fail("Use a non-administrative Linux username")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        print(f"agent-host: {error}", file=sys.stderr)
+        sys.exit(1)

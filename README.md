@@ -184,6 +184,13 @@ The dotfiles system includes comprehensive plugin support:
 - **bluereset**: Bluetooth reset utility for macOS connectivity issues
 - **renicer**: Process priority management tool for system optimization
 
+### Agent execution
+
+`./dotfiles install agent-host` installs the management command only. Creating
+the OrbStack machine and connecting it to Tailscale are explicit later actions;
+`--all` never provisions or enables remote execution. See
+[the setup and operating guide](plugins/agent-host/README.md).
+
 ### Manual Plugins
 
 These plugins are **not included in `--all`** because they have prerequisites that must be met before installation.
