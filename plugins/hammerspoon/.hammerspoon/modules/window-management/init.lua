@@ -95,6 +95,16 @@ local function getFocusedWindow()
   return window
 end
 
+-- Classify the screen the window lives on. Honors autoDetectScreens.
+local function screenCategory(window)
+  if config.autoDetectScreens == false then return "normal" end
+
+  local screen = (window and window:screen()) or hs.screen.mainScreen()
+  local mode = screen:currentMode()
+  local aspectRatio = mode.w / mode.h
+  if aspectRatio > 2.0 then return "ultrawide" else return "normal" end
+end
+
 -- Move window to specific grid position
 function This.moveWindowToPosition(cell, window)
   window = window or getFocusedWindow()
@@ -257,34 +267,76 @@ function This.resizeWindow(widthPercent, heightPercent)
 end
 
 -- =============================================================================
--- THIRDS POSITIONS (3-wide grid) — used by the `thirds` mode
+-- THIRDS POSITIONS — used by the `thirds` mode
 -- =============================================================================
 
-This.thirdsPositions = {
-  left    = { x = 0, y = 0, w = 1, h = 2 },
-  center  = { x = 1, y = 0, w = 1, h = 2 },
-  right   = { x = 2, y = 0, w = 1, h = 2 },
-  lefttwo = { x = 0, y = 0, w = 2, h = 2 },  -- left two-thirds
-  righttwo = { x = 1, y = 0, w = 2, h = 2 }, -- right two-thirds
-  full    = { x = 0, y = 0, w = 3, h = 2 }
+-- hs.grid only slices a screen into EQUAL columns, so a wider central window is
+-- expressed as a wider grid plus how many columns each zone takes. A submode is
+-- valid when 2 * side + center == grid. ⌘⌥- cycles through them.
+local DEFAULT_THIRDS_SUBMODES = {
+  { name = "33/33/33", grid = 3,  side = 1, center = 1 },
+  { name = "30/40/30", grid = 10, side = 3, center = 4 },
+  { name = "25/50/25", grid = 4,  side = 1, center = 2 }
 }
 
-function This.ThirdLeft()   This.moveWindowToPosition(This.thirdsPositions.left) end
-function This.ThirdRight()  This.moveWindowToPosition(This.thirdsPositions.right) end
-function This.ThirdCenter() This.moveWindowToPosition(This.thirdsPositions.center) end
-function This.ThirdFull()   This.moveWindowToPosition(This.thirdsPositions.full) end
+local thirdsSubmodes = config.thirdsSubmodes or DEFAULT_THIRDS_SUBMODES
 
--- Two-thirds on the window's current side (mirrors FullSide for a 3-wide grid)
+-- Active submode per monitor category, remembered independently (as modeIndex).
+-- Every category starts on the first entry, so `thirds` behaves as it did until
+-- the submode is cycled.
+local thirdsIndex = {}
+
+local function activeThirds(category)
+  return thirdsSubmodes[thirdsIndex[category] or 1] or thirdsSubmodes[1]
+end
+
+-- Placement cells for a submode, in that submode's own grid coordinates.
+local function thirdsCells(submode)
+  local side, center, width = submode.side, submode.center, submode.grid
+  return {
+    left     = { x = 0,           y = 0, w = side,          h = GRID_HEIGHT },
+    center   = { x = side,        y = 0, w = center,        h = GRID_HEIGHT },
+    right    = { x = side+center, y = 0, w = side,          h = GRID_HEIGHT },
+    lefttwo  = { x = 0,           y = 0, w = side + center, h = GRID_HEIGHT },
+    righttwo = { x = side,        y = 0, w = side + center, h = GRID_HEIGHT },
+    full     = { x = 0,           y = 0, w = width,         h = GRID_HEIGHT }
+  }
+end
+
+-- Place the focused window in a named slot, using the submode active for its
+-- monitor. The grid is set first: hs.grid's width is global mutable state and
+-- each submode uses a different one.
+local function thirdsPlace(slot)
+  local window = getFocusedWindow()
+  if not window then return end
+
+  local submode = activeThirds(screenCategory(window))
+  hs.grid.setGrid(submode.grid .. "x" .. GRID_HEIGHT)
+
+  local cell = thirdsCells(submode)[slot]
+  if cell then This.moveWindowToPosition(cell, window) end
+end
+
+function This.ThirdLeft()   thirdsPlace("left") end
+function This.ThirdRight()  thirdsPlace("right") end
+function This.ThirdCenter() thirdsPlace("center") end
+function This.ThirdFull()   thirdsPlace("full") end
+
+-- Two of the three zones on the window's current side (mirrors FullSide)
 function This.ThirdSide()
   local window = getFocusedWindow()
   if not window then return end
 
+  local submode = activeThirds(screenCategory(window))
+  hs.grid.setGrid(submode.grid .. "x" .. GRID_HEIGHT)
+
   local grid = hs.grid.get(window)
-  if grid.x >= 2 then
-    This.moveWindowToPosition(This.thirdsPositions.righttwo, window)
+  -- At or past the start of the right zone: expand rightwards. The left zone
+  -- and the center both default to the left pair, as FullSide does.
+  if grid and grid.x >= submode.side + submode.center then
+    thirdsPlace("righttwo")
   else
-    -- left column or center: default to the left two-thirds
-    This.moveWindowToPosition(This.thirdsPositions.lefttwo, window)
+    thirdsPlace("lefttwo")
   end
 end
 
@@ -311,7 +363,8 @@ local modes = {
     }
   },
   thirds = {
-    gridWidth = 3,
+    -- Per-submode, so this resolves at keypress time rather than being fixed.
+    gridWidth = function(category) return activeThirds(category).grid end,
     keymap = {
       left = This.ThirdLeft, right = This.ThirdRight, down = This.ThirdCenter,
       up = This.ThirdSide, f = This.ThirdFull
@@ -327,16 +380,6 @@ local modeCycles = config.modeCycles or {
 }
 local modeIndex = {}
 for category in pairs(modeCycles) do modeIndex[category] = 1 end
-
--- Classify the screen the window lives on. Honors autoDetectScreens.
-local function screenCategory(window)
-  if config.autoDetectScreens == false then return "normal" end
-
-  local screen = (window and window:screen()) or hs.screen.mainScreen()
-  local mode = screen:currentMode()
-  local aspectRatio = mode.w / mode.h
-  if aspectRatio > 2.0 then return "ultrawide" else return "normal" end
-end
 
 -- Name of the mode currently active for a monitor category.
 function This.activeModeName(category)
@@ -355,8 +398,11 @@ function This.applyKey(key)
   local mode = name and modes[name]
   if not mode then return end
 
-  -- The grid width is per-mode; set it before positioning.
-  hs.grid.setGrid(mode.gridWidth .. "x" .. GRID_HEIGHT)
+  -- The grid width is per-mode (and per-submode for `thirds`, hence the
+  -- optional function form); set it before positioning.
+  local gridWidth = mode.gridWidth
+  if type(gridWidth) == "function" then gridWidth = gridWidth(category) end
+  hs.grid.setGrid(gridWidth .. "x" .. GRID_HEIGHT)
 
   local action = mode.keymap[key]
   if action then action() end
@@ -374,6 +420,44 @@ function This.cycleMode()
   local index = (modeIndex[category] or 1) % #list + 1
   modeIndex[category] = index
   hs.alert.show("Mode: " .. tostring(list[index]))
+end
+
+-- Advance to the next `thirds` submode (central window width) for the focused
+-- window's monitor category. When that monitor is already in `thirds` mode and
+-- the window sits in one of the slots, it is re-placed into the same slot with
+-- the new proportions, so the change is visible without pressing anything else.
+function This.cycleThirdsSubmode()
+  local window = getFocusedWindow()
+  if not window then return end
+  if #thirdsSubmodes == 0 then return end
+
+  local category = screenCategory(window)
+  local current = activeThirds(category)
+  local slot
+
+  -- Only re-place a window that is actually laid out by this mode; otherwise
+  -- ⌘⌥- would yank windows around while `halves` or `quarters` is active.
+  if This.activeModeName(category) == "thirds" then
+    hs.grid.setGrid(current.grid .. "x" .. GRID_HEIGHT)
+    local grid = hs.grid.get(window)
+    for name, cell in pairs(thirdsCells(current)) do
+      if This.gridEquals(grid, cell) then
+        slot = name
+        break
+      end
+    end
+  end
+
+  local index = (thirdsIndex[category] or 1) % #thirdsSubmodes + 1
+  thirdsIndex[category] = index
+  local submode = thirdsSubmodes[index]
+
+  if slot then
+    hs.grid.setGrid(submode.grid .. "x" .. GRID_HEIGHT)
+    This.moveWindowToPosition(thirdsCells(submode)[slot], window)
+  end
+
+  hs.alert.show("Thirds: " .. tostring(submode.name))
 end
 
 -- Start the modifier-only mode switcher (⌘⌥⇧ by default). Because the trigger

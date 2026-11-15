@@ -148,6 +148,11 @@ if config.isFeatureEnabled("hotkeys") then
       safeExecute(modules.wm.undoWindowMove, "Undo window move failed")
     end)
 
+    -- Cycle the width of the central window in `thirds` mode
+    hs.hotkey.bind(hotkeys.windowModifiers, hotkeys.keys.thirdsSubmode, function()
+      safeExecute(modules.wm.cycleThirdsSubmode, "Cycle thirds submode failed")
+    end)
+
     -- Window resizing hotkeys (keys + percentages come from config)
     for _, binding in ipairs(config.windowManager.resizeBindings or {}) do
       hs.hotkey.bind(hotkeys.resizeModifiers, binding.key, function()
@@ -254,7 +259,9 @@ if config.isFeatureEnabled("hotkeys") then
       helpText = helpText .. "⌘⌥ + C - Center window\n"
       helpText = helpText .. "⌘⌥ + N - Move to next screen\n"
       helpText = helpText .. "⌘⌥ + Z - Undo window move\n"
-      helpText = helpText .. "⌘⌥⇧ - Switch placement mode\n\n"
+      helpText = helpText .. "⌘⌥⇧ - Switch placement mode\n"
+      helpText = helpText .. "⌘⌥ + " .. hotkeys.keys.thirdsSubmode ..
+        " - Thirds center width\n\n"
     end
 
     if config.isFeatureEnabled("applicationLauncher") then

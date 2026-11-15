@@ -69,6 +69,16 @@ config.windowManager = {
     normal    = { "halves", "thirds" },     -- monitors with aspect ratio <= 2.0
     ultrawide = { "quarters", "thirds" },    -- aspect ratio > 2.0
   },
+
+  -- Submodes of the `thirds` mode: how wide the central window is. ⌘⌥- cycles
+  -- through them, and each monitor category remembers its own (like modeCycles).
+  -- hs.grid only makes equal columns, so each entry is a grid width plus the
+  -- columns taken by the sides and the center; 2 * side + center must equal grid.
+  thirdsSubmodes = {
+    { name = "33/33/33", grid = 3,  side = 1, center = 1 },
+    { name = "30/40/30", grid = 10, side = 3, center = 4 },
+    { name = "25/50/25", grid = 4,  side = 1, center = 2 },
+  },
 }
 
 -- =============================================================================
@@ -292,6 +302,7 @@ config.hotkeys = {
     center = "c",
     nextScreen = "n",
     undo = "z",
+    thirdsSubmode = "-",  -- key left of the right shift on an ES layout
 
     -- Applications
     launcher = "a",
