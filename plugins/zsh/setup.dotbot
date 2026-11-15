@@ -1,7 +1,7 @@
 - defaults:
     link:
       relink: true
-      force: true
+      backup: true
 
 - link:
     ~/.zsh: .zsh

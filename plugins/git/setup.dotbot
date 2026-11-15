@@ -11,7 +11,7 @@
     ~/.gitignore: .gitignore
     ~/.gnupg/gpg-agent.conf:
       path: gpg-agent.conf
-      force: true
+      backup: true
     ~/bin/git-bulk:
       path: bin/git-bulk
       mode: 0750
