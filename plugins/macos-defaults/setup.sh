@@ -238,6 +238,35 @@ for entry in "${hosts_entries[@]}"; do
 done
 
 ###############################################################################
+# Login items                                                                 #
+###############################################################################
+
+# Apps that must run in the background from login. MonitorControl drives the
+# brightness/volume keys of external displays over DDC/CI (Hammerspoon cannot:
+# hs.screen:setBrightness only works on the built-in panel). It is installed
+# from the Brewfile but does not register itself to start at login.
+login_items=(
+    "/Applications/MonitorControl.app"
+)
+
+for app_path in "${login_items[@]}"; do
+    app_name="$(basename "$app_path" .app)"
+    if [[ ! -d "$app_path" ]]; then
+        log_warn "Login item not installed, skipping: $app_name"
+        continue
+    fi
+    if osascript -e 'tell application "System Events" to get the name of every login item' 2>/dev/null \
+        | tr ',' '\n' | sed 's/^ *//' | grep -qx "$app_name"; then
+        log_info "Login item already present: $app_name"
+    else
+        osascript -e "tell application \"System Events\" to make login item at end with properties {path:\"$app_path\", hidden:true}" >/dev/null \
+            && log_info "Login item added: $app_name" \
+            || log_warn "Could not add login item: $app_name"
+    fi
+    pgrep -xq "$app_name" || open -g -a "$app_path"
+done
+
+###############################################################################
 # Apply changes                                                               #
 ###############################################################################
 
