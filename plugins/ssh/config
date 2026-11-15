@@ -9,12 +9,13 @@ Host github.com
   UseKeychain yes
   IdentityFile ~/.ssh/apuigsech_github
 
-Host github.mpi-internal.com
-  AddKeysToAgent yes
-  UseKeychain yes
-  IdentityFile ~/.ssh/adevinta
-
 Host 51.79.255.43
   AddKeysToAgent yes
   UseKeychain yes
   IdentityFile ~/.ssh/id_vps_51.79.255.43
+
+Host homeserver.apgnet homeserver
+  AddKeysToAgent yes
+  UseKeychain yes
+  User apuigsech
+  IdentityFile ~/.ssh/id_homeserver

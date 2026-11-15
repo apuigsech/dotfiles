@@ -114,9 +114,6 @@
 [includeIf "gitdir:~/Develop/"]
   path = ~/.gitconfig.d/personal
 
-[includeIf "gitdir:~/Develop/adevinta/"]
-  path = ~/.gitconfig.d/adevinta
-
 [user]
 	name = Albert Puigsech Galicia
 	email = albert@puigsech.com
@@ -124,8 +121,5 @@
 	helper = 
 	helper = !/opt/homebrew/bin/gh auth git-credential
 [credential "https://gist.github.com"]
-	helper = 
-	helper = !/opt/homebrew/bin/gh auth git-credential
-[credential "https://github.mpi-internal.com"]
-	helper = 
+	helper =
 	helper = !/opt/homebrew/bin/gh auth git-credential
