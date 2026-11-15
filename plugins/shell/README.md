@@ -148,18 +148,14 @@ fi
 Main configuration loader:
 
 ```bash
-# Load shell configurations
-[ -f ~/.env ] && source ~/.env
-[ -f ~/.aliases ] && source ~/.aliases
-[ -f ~/.paths ] && source ~/.paths
+source_dir ~/.aliases
+source_dir ~/.functions
+source_dir ~/.env
+source_dir ~/.paths
+source_dir ~/.shell
 
-# Load shell-specific configurations
-for config in ~/.shell/*; do
-    [ -f "$config" ] && source "$config"
-done
-
-# Load local customizations
-[ -f ~/.shellrc.local ] && source ~/.shellrc.local
+# Per-machine overrides, not in the repo. Last on purpose so it wins.
+[[ -f ~/.shell.local ]] && source ~/.shell.local
 ```
 
 ## Usage

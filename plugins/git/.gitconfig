@@ -123,3 +123,8 @@
 [credential "https://gist.github.com"]
 	helper =
 	helper = !/opt/homebrew/bin/gh auth git-credential
+
+# Per-machine overrides (work identity, includeIf for work dirs, credentials...).
+# Not in the repo; a missing file is ignored. Last on purpose so it wins.
+[include]
+	path = ~/.gitconfig.local
