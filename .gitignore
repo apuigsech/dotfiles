@@ -2,3 +2,6 @@ logs/
 cache/
 *.DS_Store
 .venv/
+
+# Secrets (never commit)
+plugins/shell/.env/claude

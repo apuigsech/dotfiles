@@ -107,7 +107,7 @@
   "workbench.editor.tabSizing": "fit",
   "workbench.editor.wrapTabs": false,
   "workbench.startupEditor": "newUntitledFile",
-  "workbench.colorTheme": "Default Dark Modern",
+  "workbench.colorTheme": "Cursor Dark High Contrast",
   "workbench.iconTheme": "vs-seti",
   "workbench.tree.indent": 20,
   "workbench.tree.renderIndentGuides": "always",
